@@ -9,10 +9,12 @@ import java.time.LocalDateTime;
 /**
  * @param startsAt local time at the business, e.g. "2026-10-23T14:30", one of the free
  *                 slots returned by the availability endpoint
+ * @param staffId  optional: a specific staff member; when left out, the first free one is assigned
  */
 public record BookingRequest(
         @NotBlank String businessSlug,
         @NotNull Long offeringId,
         @NotNull LocalDateTime startsAt,
+        Long staffId,
         @Size(max = 500) String note) {
 }

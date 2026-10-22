@@ -29,6 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -70,7 +71,8 @@ class BookingFlowIntegrationTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        jdbcTemplate.execute("TRUNCATE bookings, offerings, business_hours, businesses, users RESTART IDENTITY CASCADE");
+        jdbcTemplate.execute("TRUNCATE bookings, staff_offerings, staff, offerings, business_hours, businesses, users "
+                + "RESTART IDENTITY CASCADE");
         day = LocalDate.now(ISTANBUL).plusDays(2);
 
         ownerToken = register("ali@example.com", "Ali", "OWNER");
@@ -246,6 +248,111 @@ class BookingFlowIntegrationTest {
                 """)
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Invalid request"));
+    }
+
+    // --- Staff ---
+
+    @Test
+    void withTwoStaffTwoCustomersCanBookTheSameTime() throws Exception {
+        long mehmet = addStaff("Mehmet", "[]");
+        long zeynep = addStaff("Zeynep", "[]");
+        String deniz = register("deniz@example.com", "Deniz", "CUSTOMER");
+        String can = register("can@example.com", "Can", "CUSTOMER");
+
+        book(customerToken, "14:00")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.staffName").value("Mehmet"));
+        // Mehmet is busy now, but Zeynep is still free at 14:00
+        availability(offeringId, mehmet).andExpect(jsonPath("$.slots", not(hasItem("14:00"))));
+        availability().andExpect(jsonPath("$.slots", hasItem("14:00")));
+
+        book(deniz, "14:00")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.staffName").value("Zeynep"));
+        availability().andExpect(jsonPath("$.slots", not(hasItem("14:00"))));
+        book(can, "14:00").andExpect(status().isConflict());
+
+        perform(get("/api/owner/businesses/{id}/bookings", businessId)
+                .param("date", day.toString()).param("staffId", String.valueOf(zeynep)), ownerToken, null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].customerName").value("Deniz"));
+    }
+
+    @Test
+    void customersCanPickAStaffMemberAndStaffOnlyDoTheirServices() throws Exception {
+        String beard = json(perform(post("/api/owner/businesses/{id}/offerings", businessId), ownerToken, """
+                {"name": "Sakal", "durationMinutes": 20, "price": 150.00}
+                """).andExpect(status().isCreated()));
+        long beardId = ((Number) JsonPath.read(beard, "$.id")).longValue();
+        long mehmet = addStaff("Mehmet", "[" + offeringId + "]");
+        long zeynep = addStaff("Zeynep", "[]");
+
+        // Mehmet only cuts hair
+        availability(beardId, mehmet).andExpect(status().isNotFound());
+
+        perform(post("/api/bookings"), customerToken, """
+                {"businessSlug": "kuafor-ali", "offeringId": %d, "startsAt": "%sT11:00", "staffId": %d}
+                """.formatted(offeringId, day, zeynep))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.staffName").value("Zeynep"));
+        availability(offeringId, zeynep).andExpect(jsonPath("$.slots", not(hasItem("11:00"))));
+        availability(offeringId, mehmet).andExpect(jsonPath("$.slots", hasItem("11:00")));
+
+        mockMvc.perform(get("/api/businesses/kuafor-ali"))
+                .andExpect(jsonPath("$.staff.length()").value(2))
+                .andExpect(jsonPath("$.staff[0].name").value("Mehmet"))
+                .andExpect(jsonPath("$.staff[0].everyService").value(false))
+                .andExpect(jsonPath("$.staff[0].offeringIds[0]").value((int) offeringId))
+                .andExpect(jsonPath("$.staff[1].everyService").value(true));
+
+        // A deactivated staff member leaves the public page and takes no new bookings
+        perform(delete("/api/owner/businesses/{id}/staff/{staffId}", businessId, zeynep), ownerToken, null)
+                .andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/businesses/kuafor-ali")).andExpect(jsonPath("$.staff.length()").value(1));
+        availability(offeringId, zeynep).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void staffServicesMustBelongToTheBusiness() throws Exception {
+        perform(post("/api/owner/businesses/{id}/staff", businessId), ownerToken, """
+                {"name": "Mehmet", "offeringIds": [999999]}
+                """)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Invalid request"));
+    }
+
+    @Test
+    void theDatabaseRejectsOverlapsPerStaffMember() throws Exception {
+        long mehmet = addStaff("Mehmet", "[]");
+        long zeynep = addStaff("Zeynep", "[]");
+        Long customerId = jdbcTemplate.queryForObject("SELECT id FROM users WHERE email = 'ayse@example.com'", Long.class);
+        String insert = """
+                INSERT INTO bookings (business_id, offering_id, customer_id, staff_id, starts_at, ends_at, price, status)
+                VALUES (?, ?, ?, ?, ?::timestamptz, ?::timestamptz, 250, 'CONFIRMED')
+                """;
+        jdbcTemplate.update(insert, businessId, offeringId, customerId, mehmet, "2030-01-01 10:00+03", "2030-01-01 10:30+03");
+
+        // Same person, overlapping time: rejected
+        assertThatThrownBy(() -> jdbcTemplate.update(insert, businessId, offeringId, customerId, mehmet,
+                "2030-01-01 10:15+03", "2030-01-01 10:45+03"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        // Another person at the same time: fine
+        jdbcTemplate.update(insert, businessId, offeringId, customerId, zeynep, "2030-01-01 10:00+03", "2030-01-01 10:30+03");
+    }
+
+    private long addStaff(String name, String offeringIdsJson) throws Exception {
+        String staff = json(perform(post("/api/owner/businesses/{id}/staff", businessId), ownerToken, """
+                {"name": "%s", "offeringIds": %s}
+                """.formatted(name, offeringIdsJson)).andExpect(status().isCreated()));
+        return ((Number) JsonPath.read(staff, "$.id")).longValue();
+    }
+
+    private ResultActions availability(long offering, long staffId) throws Exception {
+        return mockMvc.perform(get("/api/businesses/kuafor-ali/availability")
+                .param("offeringId", String.valueOf(offering))
+                .param("date", day.toString())
+                .param("staffId", String.valueOf(staffId)));
     }
 
     private ResultActions availability() throws Exception {

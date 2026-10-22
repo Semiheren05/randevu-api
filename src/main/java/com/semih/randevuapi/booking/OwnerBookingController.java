@@ -31,12 +31,13 @@ public class OwnerBookingController {
     }
 
     @GetMapping("/bookings")
-    @Operation(summary = "The day's bookings in time order (?date=2026-10-23, default today)")
+    @Operation(summary = "The day's bookings in time order (?date=2026-10-23, default today; optional &staffId=3)")
     public List<BookingResponse> day(
             @PathVariable Long businessId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) Long staffId,
             Authentication auth) {
-        return bookingService.dayForOwner(businessId, date, auth.getName());
+        return bookingService.dayForOwner(businessId, date, staffId, auth.getName());
     }
 
     @PostMapping("/bookings/{bookingId}/cancel")

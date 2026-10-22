@@ -15,6 +15,7 @@ public record BookingNotification(
         String ownerEmail,
         String businessName,
         String offeringName,
+        String staffName,
         LocalDateTime startsAt) {
 
     public enum Type {
@@ -31,6 +32,7 @@ public record BookingNotification(
                 booking.getBusiness().getOwner().getEmail(),
                 booking.getBusiness().getName(),
                 booking.getOffering().getName(),
+                booking.getStaff() != null ? booking.getStaff().getName() : null,
                 LocalDateTime.ofInstant(booking.getStartsAt(), booking.getBusiness().getZoneId()));
     }
 }

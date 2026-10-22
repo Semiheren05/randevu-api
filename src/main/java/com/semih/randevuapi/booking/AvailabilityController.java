@@ -23,11 +23,12 @@ public class AvailabilityController {
     }
 
     @GetMapping("/api/businesses/{slug}/availability")
-    @Operation(summary = "Free start times for a service on a day (?offeringId=1&date=2026-10-23)")
+    @Operation(summary = "Free start times for a service on a day (?offeringId=1&date=2026-10-23[&staffId=3])")
     public AvailabilityResponse availability(
             @PathVariable String slug,
             @RequestParam Long offeringId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        return bookingService.availability(slug, offeringId, date);
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) Long staffId) {
+        return bookingService.availability(slug, offeringId, date, staffId);
     }
 }

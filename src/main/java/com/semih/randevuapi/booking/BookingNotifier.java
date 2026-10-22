@@ -60,6 +60,8 @@ public class BookingNotifier {
     List<SimpleMailMessage> buildMails(BookingNotification n) {
         String when = n.startsAt().format(WHEN);
         boolean confirmed = n.type() == BookingNotification.Type.CONFIRMED;
+        // "Saç kesimi (Mehmet)" when a staff member serves the customer
+        String service = n.staffName() == null ? n.offeringName() : n.offeringName() + " (" + n.staffName() + ")";
 
         SimpleMailMessage toCustomer = mail(n.customerEmail(),
                 (confirmed ? "Randevunuz onaylandı: " : "Randevunuz iptal edildi: ") + n.businessName(),
@@ -72,7 +74,7 @@ public class BookingNotifier {
                 Hizmet: %s
                 Tarih: %s
                 """.formatted(n.customerName(), n.businessName(), confirmed ? "onaylandı" : "iptal edildi",
-                        n.businessName(), n.offeringName(), when));
+                        n.businessName(), service, when));
 
         SimpleMailMessage toOwner = mail(n.ownerEmail(),
                 (confirmed ? "Yeni randevu: " : "Randevu iptal edildi: ") + n.customerName() + ", " + when,
@@ -81,7 +83,7 @@ public class BookingNotifier {
                 Hizmet: %s
                 Tarih: %s
                 Durum: %s
-                """.formatted(n.customerName(), n.customerEmail(), n.offeringName(), when,
+                """.formatted(n.customerName(), n.customerEmail(), service, when,
                         confirmed ? "Onaylandı" : "İptal edildi"));
         // The owner can answer the customer directly from the email
         toOwner.setReplyTo(n.customerEmail());

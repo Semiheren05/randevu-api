@@ -2,6 +2,7 @@ package com.semih.randevuapi.booking;
 
 import com.semih.randevuapi.business.Business;
 import com.semih.randevuapi.business.Offering;
+import com.semih.randevuapi.business.Staff;
 import com.semih.randevuapi.user.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -43,6 +44,11 @@ public class Booking {
     @JoinColumn(name = "customer_id", nullable = false, updatable = false)
     private User customer;
 
+    /** Who serves the customer; null for a business without staff. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "staff_id", updatable = false)
+    private Staff staff;
+
     @Column(name = "starts_at", nullable = false, updatable = false, columnDefinition = "timestamptz")
     private Instant startsAt;
 
@@ -69,10 +75,11 @@ public class Booking {
         // for JPA
     }
 
-    public Booking(Business business, Offering offering, User customer, TimeRange time, String note) {
+    public Booking(Business business, Offering offering, User customer, Staff staff, TimeRange time, String note) {
         this.business = business;
         this.offering = offering;
         this.customer = customer;
+        this.staff = staff;
         this.startsAt = time.start();
         this.endsAt = time.end();
         this.price = offering.getPrice();
@@ -109,6 +116,15 @@ public class Booking {
 
     public User getCustomer() {
         return customer;
+    }
+
+    public Staff getStaff() {
+        return staff;
+    }
+
+    /** Whether this booking takes up the given person's time; bookings without staff block everyone. */
+    public boolean occupies(Staff member) {
+        return staff == null || staff.getId().equals(member.getId());
     }
 
     public Instant getStartsAt() {

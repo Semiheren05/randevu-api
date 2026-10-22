@@ -25,7 +25,7 @@ class BookingNotifierTest {
 
     private static final BookingNotification CONFIRMED = new BookingNotification(
             BookingNotification.Type.CONFIRMED, 5L, "Ayşe", "ayse@example.com", "ali@example.com",
-            "Kuaför Ali", "Saç kesimi", LocalDateTime.of(2026, 10, 23, 14, 30));
+            "Kuaför Ali", "Saç kesimi", null, LocalDateTime.of(2026, 10, 23, 14, 30));
 
     @Mock
     private ObjectProvider<JavaMailSender> mailSenderProvider;
@@ -54,12 +54,23 @@ class BookingNotifierTest {
     @Test
     void cancellationEmailsSaySo() {
         BookingNotification cancelled = new BookingNotification(BookingNotification.Type.CANCELLED, 5L, "Ayşe",
-                "ayse@example.com", "ali@example.com", "Kuaför Ali", "Saç kesimi", LocalDateTime.of(2026, 10, 23, 14, 30));
+                "ayse@example.com", "ali@example.com", "Kuaför Ali", "Saç kesimi", null, LocalDateTime.of(2026, 10, 23, 14, 30));
 
         List<SimpleMailMessage> mails = notifier.buildMails(cancelled);
 
         assertThat(mails.get(0).getSubject()).isEqualTo("Randevunuz iptal edildi: Kuaför Ali");
         assertThat(mails.get(1).getSubject()).startsWith("Randevu iptal edildi: Ayşe");
+    }
+
+    @Test
+    void theStaffMemberIsNamedWhenThereIsOne() {
+        BookingNotification withStaff = new BookingNotification(BookingNotification.Type.CONFIRMED, 7L, "Ayşe",
+                "ayse@example.com", "ali@example.com", "Kuaför Ali", "Saç kesimi", "Mehmet",
+                LocalDateTime.of(2026, 10, 23, 14, 30));
+
+        List<SimpleMailMessage> mails = notifier.buildMails(withStaff);
+
+        assertThat(mails).allSatisfy(mail -> assertThat(mail.getText()).contains("Saç kesimi (Mehmet)"));
     }
 
     @Test
@@ -84,7 +95,7 @@ class BookingNotifierTest {
     void lineBreaksInNamesCannotReachTheSubject() {
         BookingNotification sneaky = new BookingNotification(BookingNotification.Type.CONFIRMED, 6L,
                 "Ayşe\r\nBcc: herkes@example.com", "ayse@example.com", "ali@example.com",
-                "Kuaför Ali", "Saç kesimi", LocalDateTime.of(2026, 10, 23, 14, 30));
+                "Kuaför Ali", "Saç kesimi", null, LocalDateTime.of(2026, 10, 23, 14, 30));
 
         assertThat(notifier.buildMails(sneaky)).allSatisfy(mail ->
                 assertThat(mail.getSubject()).doesNotContain("\r", "\n"));

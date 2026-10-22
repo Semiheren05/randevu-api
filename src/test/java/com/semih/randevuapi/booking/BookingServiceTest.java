@@ -6,8 +6,11 @@ import com.semih.randevuapi.business.BusinessService;
 import com.semih.randevuapi.business.Offering;
 import com.semih.randevuapi.business.OfferingRepository;
 import com.semih.randevuapi.business.OpeningHours;
+import com.semih.randevuapi.business.Staff;
+import com.semih.randevuapi.business.StaffRepository;
 import com.semih.randevuapi.common.exception.CancellationNotAllowedException;
 import com.semih.randevuapi.common.exception.InvalidRequestException;
+import com.semih.randevuapi.common.exception.ResourceNotFoundException;
 import com.semih.randevuapi.common.exception.SlotNotAvailableException;
 import com.semih.randevuapi.user.Role;
 import com.semih.randevuapi.user.User;
@@ -15,6 +18,7 @@ import com.semih.randevuapi.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
@@ -54,6 +58,8 @@ class BookingServiceTest {
     @Mock
     private OfferingRepository offeringRepository;
     @Mock
+    private StaffRepository staffRepository;
+    @Mock
     private UserRepository userRepository;
     @Mock
     private BusinessService businessService;
@@ -68,8 +74,8 @@ class BookingServiceTest {
     @BeforeEach
     void setUp() {
         BookingProperties properties = new BookingProperties(Duration.ofMinutes(15), Duration.ofHours(2), 60);
-        bookingService = new BookingService(bookingRepository, offeringRepository, userRepository, businessService,
-                properties, events, Clock.fixed(NOW, ISTANBUL));
+        bookingService = new BookingService(bookingRepository, offeringRepository, staffRepository, userRepository,
+                businessService, properties, events, Clock.fixed(NOW, ISTANBUL));
 
         User owner = new User("owner@example.com", "hash", "Ali", Role.OWNER);
         customer = new User("ayse@example.com", "hash", "Ayşe", Role.CUSTOMER);
@@ -123,7 +129,7 @@ class BookingServiceTest {
         when(businessService.findBySlug("kuafor-ali")).thenReturn(business);
         when(offeringRepository.findByIdAndBusinessId(7L, 1L)).thenReturn(Optional.of(haircut));
 
-        assertThatThrownBy(() -> bookingService.availability("kuafor-ali", 7L, TOMORROW.plusDays(90)))
+        assertThatThrownBy(() -> bookingService.availability("kuafor-ali", 7L, TOMORROW.plusDays(90), null))
                 .isInstanceOf(InvalidRequestException.class);
     }
 
@@ -165,6 +171,98 @@ class BookingServiceTest {
                 .isInstanceOf(InvalidRequestException.class);
     }
 
+    // --- Staff ---
+
+    @Test
+    void withTwoStaffASlotStaysFreeUntilBothAreBooked() {
+        givenBookable();
+        Staff mehmet = staff(21L, "Mehmet");
+        Staff zeynep = staff(22L, "Zeynep");
+        when(staffRepository.findByBusinessIdAndActiveTrueOrderByIdAsc(1L)).thenReturn(List.of(mehmet, zeynep));
+        when(bookingRepository.findConfirmedOverlapping(eq(1L), any(), any()))
+                .thenReturn(List.of(booking("2026-10-23T10:30", mehmet)));
+
+        bookingService.book(request("2026-10-23T10:30"), "ayse@example.com");
+
+        assertThat(savedBooking().getStaff()).isSameAs(zeynep);
+    }
+
+    @Test
+    void whenEveryoneIsBusyTheSlotIsGone() {
+        givenBookable();
+        Staff mehmet = staff(21L, "Mehmet");
+        Staff zeynep = staff(22L, "Zeynep");
+        when(staffRepository.findByBusinessIdAndActiveTrueOrderByIdAsc(1L)).thenReturn(List.of(mehmet, zeynep));
+        when(bookingRepository.findConfirmedOverlapping(eq(1L), any(), any()))
+                .thenReturn(List.of(booking("2026-10-23T10:30", mehmet), booking("2026-10-23T10:30", zeynep)));
+
+        assertThatThrownBy(() -> bookingService.book(request("2026-10-23T10:30"), "ayse@example.com"))
+                .isInstanceOf(SlotNotAvailableException.class);
+    }
+
+    @Test
+    void staffWhoDoNotDoTheServiceAreSkipped() {
+        givenBookable();
+        Offering beardTrim = new Offering(business, "Sakal", 20, new BigDecimal("150.00"));
+        ReflectionTestUtils.setField(beardTrim, "id", 8L);
+        Staff onlyBeards = staff(21L, "Mehmet", beardTrim);
+        Staff zeynep = staff(22L, "Zeynep");
+        when(staffRepository.findByBusinessIdAndActiveTrueOrderByIdAsc(1L)).thenReturn(List.of(onlyBeards, zeynep));
+        when(bookingRepository.findConfirmedOverlapping(eq(1L), any(), any()))
+                .thenReturn(List.of(booking("2026-10-23T10:30", zeynep)));
+
+        // Mehmet is free at 10:30 but does not cut hair
+        assertThatThrownBy(() -> bookingService.book(request("2026-10-23T10:30"), "ayse@example.com"))
+                .isInstanceOf(SlotNotAvailableException.class);
+    }
+
+    @Test
+    void aChosenStaffMemberMustBeFreeThemselves() {
+        givenBookable();
+        Staff mehmet = staff(21L, "Mehmet");
+        Staff zeynep = staff(22L, "Zeynep");
+        when(staffRepository.findByBusinessIdAndActiveTrueOrderByIdAsc(1L)).thenReturn(List.of(mehmet, zeynep));
+        when(bookingRepository.findConfirmedOverlapping(eq(1L), any(), any()))
+                .thenReturn(List.of(booking("2026-10-23T10:30", mehmet)));
+
+        // Zeynep is free, but the customer asked for Mehmet
+        assertThatThrownBy(() -> bookingService.book(request("2026-10-23T10:30", 21L), "ayse@example.com"))
+                .isInstanceOf(SlotNotAvailableException.class);
+    }
+
+    @Test
+    void anUnknownStaffMemberIsNotFound() {
+        givenBookable();
+        when(staffRepository.findByBusinessIdAndActiveTrueOrderByIdAsc(1L)).thenReturn(List.of(staff(21L, "Mehmet")));
+
+        assertThatThrownBy(() -> bookingService.book(request("2026-10-23T10:30", 99L), "ayse@example.com"))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void aBookingWithoutStaffBlocksEveryone() {
+        givenBookable();
+        when(staffRepository.findByBusinessIdAndActiveTrueOrderByIdAsc(1L)).thenReturn(List.of(staff(21L, "Mehmet")));
+        // Made before the business added staff
+        when(bookingRepository.findConfirmedOverlapping(eq(1L), any(), any()))
+                .thenReturn(List.of(booking("2026-10-23T10:30")));
+
+        assertThatThrownBy(() -> bookingService.book(request("2026-10-23T10:30"), "ayse@example.com"))
+                .isInstanceOf(SlotNotAvailableException.class);
+    }
+
+    private Staff staff(Long id, String name, Offering... offerings) {
+        Staff staff = new Staff(business, name, List.of(offerings));
+        ReflectionTestUtils.setField(staff, "id", id);
+        return staff;
+    }
+
+    private Booking savedBooking() {
+        ArgumentCaptor<Booking> saved = ArgumentCaptor.forClass(Booking.class);
+        verify(bookingRepository).saveAndFlush(saved.capture());
+        return saved.getValue();
+    }
+
     private void givenBookable() {
         when(userRepository.getByEmail("ayse@example.com")).thenReturn(customer);
         when(businessService.findBySlug("kuafor-ali")).thenReturn(business);
@@ -172,11 +270,20 @@ class BookingServiceTest {
     }
 
     private Booking booking(String localStart) {
+        return booking(localStart, null);
+    }
+
+    private Booking booking(String localStart, Staff staff) {
         Instant start = LocalDateTime.parse(localStart).atZone(ISTANBUL).toInstant();
-        return new Booking(business, haircut, customer, new TimeRange(start, start.plus(Duration.ofMinutes(30))), null);
+        return new Booking(business, haircut, customer, staff,
+                new TimeRange(start, start.plus(Duration.ofMinutes(30))), null);
     }
 
     private static BookingRequest request(String localStart) {
-        return new BookingRequest("kuafor-ali", 7L, LocalDateTime.parse(localStart), null);
+        return request(localStart, null);
+    }
+
+    private static BookingRequest request(String localStart, Long staffId) {
+        return new BookingRequest("kuafor-ali", 7L, LocalDateTime.parse(localStart), staffId, null);
     }
 }

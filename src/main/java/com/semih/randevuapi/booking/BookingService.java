@@ -8,6 +8,9 @@ import com.semih.randevuapi.business.Business;
 import com.semih.randevuapi.business.BusinessService;
 import com.semih.randevuapi.business.Offering;
 import com.semih.randevuapi.business.OfferingRepository;
+import com.semih.randevuapi.business.OpeningHours;
+import com.semih.randevuapi.business.Staff;
+import com.semih.randevuapi.business.StaffRepository;
 import com.semih.randevuapi.common.exception.CancellationNotAllowedException;
 import com.semih.randevuapi.common.exception.InvalidRequestException;
 import com.semih.randevuapi.common.exception.ResourceNotFoundException;
@@ -31,6 +34,10 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.TreeMap;
+import java.util.function.Predicate;
 
 @Service
 public class BookingService {
@@ -41,6 +48,7 @@ public class BookingService {
 
     private final BookingRepository bookingRepository;
     private final OfferingRepository offeringRepository;
+    private final StaffRepository staffRepository;
     private final UserRepository userRepository;
     private final BusinessService businessService;
     private final BookingProperties properties;
@@ -49,6 +57,7 @@ public class BookingService {
 
     public BookingService(BookingRepository bookingRepository,
                           OfferingRepository offeringRepository,
+                          StaffRepository staffRepository,
                           UserRepository userRepository,
                           BusinessService businessService,
                           BookingProperties properties,
@@ -56,6 +65,7 @@ public class BookingService {
                           Clock clock) {
         this.bookingRepository = bookingRepository;
         this.offeringRepository = offeringRepository;
+        this.staffRepository = staffRepository;
         this.userRepository = userRepository;
         this.businessService = businessService;
         this.properties = properties;
@@ -66,13 +76,13 @@ public class BookingService {
     // --- Public ---
 
     @Transactional(readOnly = true)
-    public AvailabilityResponse availability(String businessSlug, Long offeringId, LocalDate date) {
+    public AvailabilityResponse availability(String businessSlug, Long offeringId, LocalDate date, Long staffId) {
         Business business = businessService.findBySlug(businessSlug);
         Offering offering = activeOffering(business, offeringId);
-        List<String> slots = freeSlots(business, offering, date).stream()
-                .map(time -> time.format(SLOT_FORMAT))
+        List<String> slots = freeSlots(business, offering, date, staffId).stream()
+                .map(slot -> slot.time().format(SLOT_FORMAT))
                 .toList();
-        return new AvailabilityResponse(date, offering.getId(), offering.getDurationMinutes(),
+        return new AvailabilityResponse(date, offering.getId(), staffId, offering.getDurationMinutes(),
                 business.getZoneId().getId(), slots);
     }
 
@@ -81,7 +91,10 @@ public class BookingService {
     /**
      * Books a slot. Two layers protect against double booking: the slot is checked
      * against the free slots first, and if two requests still race for the same time,
-     * the database's exclusion constraint lets only one of them in.
+     * the database's exclusion constraints let only one of them in.
+     *
+     * <p>Without a chosen staff member, the first free person who does the service is
+     * assigned (staff are tried in the order they were added).
      */
     @Transactional
     public BookingResponse book(BookingRequest request, String customerEmail) {
@@ -89,14 +102,14 @@ public class BookingService {
         Business business = businessService.findBySlug(request.businessSlug());
         Offering offering = activeOffering(business, request.offeringId());
 
-        LocalDate date = request.startsAt().toLocalDate();
         LocalTime time = request.startsAt().toLocalTime();
-        if (!freeSlots(business, offering, date).contains(time)) {
-            throw new SlotNotAvailableException();
-        }
+        FreeSlot slot = freeSlots(business, offering, request.startsAt().toLocalDate(), request.staffId()).stream()
+                .filter(free -> free.time().equals(time))
+                .findFirst()
+                .orElseThrow(SlotNotAvailableException::new);
 
         Instant start = request.startsAt().atZone(business.getZoneId()).toInstant();
-        Booking booking = new Booking(business, offering, customer,
+        Booking booking = new Booking(business, offering, customer, slot.staff(),
                 new TimeRange(start, start.plus(offering.getDuration())), trimToNull(request.note()));
         try {
             // Flush now, so a constraint violation surfaces here and not at commit
@@ -129,12 +142,15 @@ public class BookingService {
     // --- Owner ---
 
     @Transactional(readOnly = true)
-    public List<BookingResponse> dayForOwner(Long businessId, LocalDate date, String ownerEmail) {
+    public List<BookingResponse> dayForOwner(Long businessId, LocalDate date, Long staffId, String ownerEmail) {
         Business business = businessService.requireOwned(businessId, ownerEmail);
         ZoneId zone = business.getZoneId();
         LocalDate day = date != null ? date : LocalDate.now(clock.withZone(zone));
+        Predicate<Booking> forStaff = booking -> staffId == null
+                || (booking.getStaff() != null && booking.getStaff().getId().equals(staffId));
         return bookingRepository.findForBusinessBetween(businessId, startOf(day, zone), startOf(day.plusDays(1), zone))
                 .stream()
+                .filter(forStaff)
                 .map(BookingResponse::from)
                 .toList();
     }
@@ -183,7 +199,19 @@ public class BookingService {
 
     // --- Helpers ---
 
-    private List<LocalTime> freeSlots(Business business, Offering offering, LocalDate date) {
+    /** A free start time and who would take it; staff is null for a business without staff. */
+    private record FreeSlot(LocalTime time, Staff staff) {
+    }
+
+    /**
+     * Free start times on a day, sorted. A business without staff has one calendar. A
+     * business with staff has one calendar per person: a time is free when at least one
+     * person who does the service (or the one asked for) is free then.
+     */
+    private List<FreeSlot> freeSlots(Business business, Offering offering, LocalDate date, Long staffId) {
+        List<Staff> activeStaff = staffRepository.findByBusinessIdAndActiveTrueOrderByIdAsc(business.getId());
+        List<Staff> candidates = candidates(activeStaff, offering, staffId);
+
         ZoneId zone = business.getZoneId();
         LocalDate today = LocalDate.now(clock.withZone(zone));
         if (date.isBefore(today)) {
@@ -193,17 +221,50 @@ public class BookingService {
             throw new InvalidRequestException("Bookings can be made at most " + properties.maxDaysAhead()
                     + " days ahead");
         }
-        return business.openingHoursOn(date.getDayOfWeek())
-                .map(hours -> {
-                    List<TimeRange> busy = bookingRepository
-                            .findConfirmedOverlapping(business.getId(), startOf(date, zone), startOf(date.plusDays(1), zone))
-                            .stream()
-                            .map(b -> new TimeRange(b.getStartsAt(), b.getEndsAt()))
-                            .toList();
-                    return AvailabilityCalculator.freeSlots(date, hours.getOpensAt(), hours.getClosesAt(), zone,
-                            offering.getDuration(), properties.slotStep(), busy, clock.instant());
-                })
-                .orElse(List.of());
+        Optional<OpeningHours> hours = business.openingHoursOn(date.getDayOfWeek());
+        if (hours.isEmpty()) {
+            return List.of();
+        }
+        List<Booking> dayBookings = bookingRepository.findConfirmedOverlapping(
+                business.getId(), startOf(date, zone), startOf(date.plusDays(1), zone));
+
+        if (activeStaff.isEmpty()) {
+            return slotsFor(date, hours.get(), zone, offering, dayBookings).stream()
+                    .map(time -> new FreeSlot(time, null))
+                    .toList();
+        }
+        // TreeMap keeps times sorted; putIfAbsent gives each time to the first free person
+        Map<LocalTime, Staff> firstFree = new TreeMap<>();
+        for (Staff member : candidates) {
+            List<Booking> theirs = dayBookings.stream().filter(booking -> booking.occupies(member)).toList();
+            for (LocalTime time : slotsFor(date, hours.get(), zone, offering, theirs)) {
+                firstFree.putIfAbsent(time, member);
+            }
+        }
+        return firstFree.entrySet().stream()
+                .map(entry -> new FreeSlot(entry.getKey(), entry.getValue()))
+                .toList();
+    }
+
+    /** Active staff who do the service, narrowed to one person when asked for. */
+    private static List<Staff> candidates(List<Staff> activeStaff, Offering offering, Long staffId) {
+        if (staffId == null) {
+            return activeStaff.stream().filter(member -> member.canPerform(offering)).toList();
+        }
+        return activeStaff.stream()
+                .filter(member -> member.getId().equals(staffId) && member.canPerform(offering))
+                .findFirst()
+                .map(List::of)
+                .orElseThrow(() -> new ResourceNotFoundException("Staff member not found for this service"));
+    }
+
+    private List<LocalTime> slotsFor(LocalDate date, OpeningHours hours, ZoneId zone, Offering offering,
+                                     List<Booking> bookings) {
+        List<TimeRange> busy = bookings.stream()
+                .map(booking -> new TimeRange(booking.getStartsAt(), booking.getEndsAt()))
+                .toList();
+        return AvailabilityCalculator.freeSlots(date, hours.getOpensAt(), hours.getClosesAt(), zone,
+                offering.getDuration(), properties.slotStep(), busy, clock.instant());
     }
 
     private Offering activeOffering(Business business, Long offeringId) {
