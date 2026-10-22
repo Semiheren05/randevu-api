@@ -5,6 +5,8 @@ import com.semih.randevuapi.business.dto.BusinessResponse;
 import com.semih.randevuapi.business.dto.OfferingRequest;
 import com.semih.randevuapi.business.dto.OfferingResponse;
 import com.semih.randevuapi.business.dto.OpeningHoursRequest;
+import com.semih.randevuapi.business.dto.StaffRequest;
+import com.semih.randevuapi.business.dto.StaffResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -100,5 +102,36 @@ public class OwnerBusinessController {
                                    @PathVariable Long offeringId,
                                    Authentication auth) {
         businessService.deactivateOffering(businessId, offeringId, auth.getName());
+    }
+
+    @GetMapping("/{businessId}/staff")
+    @Operation(summary = "My staff, including inactive ones")
+    public List<StaffResponse> staff(@PathVariable Long businessId, Authentication auth) {
+        return businessService.listStaff(businessId, auth.getName());
+    }
+
+    @PostMapping("/{businessId}/staff")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Add a staff member; with staff, each person takes their own bookings in parallel")
+    public StaffResponse addStaff(@PathVariable Long businessId,
+                                  @Valid @RequestBody StaffRequest request,
+                                  Authentication auth) {
+        return businessService.addStaff(businessId, request, auth.getName());
+    }
+
+    @PutMapping("/{businessId}/staff/{staffId}")
+    @Operation(summary = "Rename a staff member or change which services they do (empty list: every service)")
+    public StaffResponse updateStaff(@PathVariable Long businessId,
+                                     @PathVariable Long staffId,
+                                     @Valid @RequestBody StaffRequest request,
+                                     Authentication auth) {
+        return businessService.updateStaff(businessId, staffId, request, auth.getName());
+    }
+
+    @DeleteMapping("/{businessId}/staff/{staffId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Deactivate a staff member; they take no new bookings, existing ones stay")
+    public void deactivateStaff(@PathVariable Long businessId, @PathVariable Long staffId, Authentication auth) {
+        businessService.deactivateStaff(businessId, staffId, auth.getName());
     }
 }
