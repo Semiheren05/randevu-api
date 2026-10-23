@@ -21,6 +21,25 @@ jobs:
       - name: Build and test
         run: mvn -B verify
 
+      # Writes the totals as a notice on the run, so skipped integration tests (no Docker) are visible
+      - name: Test summary
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import glob
+          import xml.etree.ElementTree as ET
+          total = skipped = failed = integration = 0
+          for path in glob.glob("target/surefire-reports/TEST-*.xml"):
+              suite = ET.parse(path).getroot()
+              tests = int(suite.get("tests"))
+              total += tests
+              skipped += int(suite.get("skipped"))
+              failed += int(suite.get("failures")) + int(suite.get("errors"))
+              if suite.get("name", "").endswith("IntegrationTest"):
+                  integration += tests - int(suite.get("skipped"))
+          print(f"::notice title=Tests::{total} run, {integration} against PostgreSQL, {skipped} skipped, {failed} failed")
+          PY
+
   docker:
     name: Docker image
     runs-on: ubuntu-latest
