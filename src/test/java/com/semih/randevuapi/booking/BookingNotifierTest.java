@@ -74,6 +74,20 @@ class BookingNotifierTest {
     }
 
     @Test
+    void aReminderGoesToTheCustomerOnly() {
+        BookingNotification reminder = new BookingNotification(BookingNotification.Type.REMINDER, 8L, "Ayşe",
+                "ayse@example.com", "ali@example.com", "Kuaför Ali", "Saç kesimi", "Mehmet",
+                LocalDateTime.of(2026, 10, 23, 14, 30));
+
+        List<SimpleMailMessage> mails = notifier.buildMails(reminder);
+
+        assertThat(mails).hasSize(1);
+        assertThat(mails.getFirst().getTo()).containsExactly("ayse@example.com");
+        assertThat(mails.getFirst().getSubject()).isEqualTo("Randevu hatırlatması: Kuaför Ali");
+        assertThat(mails.getFirst().getText()).contains("yaklaşıyor", "Saç kesimi (Mehmet)", "14:30");
+    }
+
+    @Test
     void oneFailingEmailDoesNotStopTheOtherOrThrow() {
         when(mailSenderProvider.getIfAvailable()).thenReturn(mailSender);
         doThrow(new MailSendException("SMTP down")).when(mailSender).send(any(SimpleMailMessage.class));

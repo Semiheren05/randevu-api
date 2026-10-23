@@ -15,7 +15,8 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Emails the customer and the business owner when a booking is made or cancelled.
+ * Emails the customer and the business owner when a booking is made or cancelled, and the
+ * customer alone when a reminder is due.
  *
  * <ul>
  *   <li>{@code @TransactionalEventListener}: only after the booking is really committed.</li>
@@ -62,6 +63,20 @@ public class BookingNotifier {
         boolean confirmed = n.type() == BookingNotification.Type.CONFIRMED;
         // "Saç kesimi (Mehmet)" when a staff member serves the customer
         String service = n.staffName() == null ? n.offeringName() : n.offeringName() + " (" + n.staffName() + ")";
+
+        if (n.type() == BookingNotification.Type.REMINDER) {
+            return List.of(mail(n.customerEmail(), "Randevu hatırlatması: " + n.businessName(),
+                    """
+                    Merhaba %s,
+
+                    %s randevunuz yaklaşıyor.
+
+                    Hizmet: %s
+                    Tarih: %s
+
+                    Gelemeyecekseniz lütfen randevunuzu iptal edin.
+                    """.formatted(n.customerName(), n.businessName(), service, when)));
+        }
 
         SimpleMailMessage toCustomer = mail(n.customerEmail(),
                 (confirmed ? "Randevunuz onaylandı: " : "Randevunuz iptal edildi: ") + n.businessName(),

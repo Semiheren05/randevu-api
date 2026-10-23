@@ -40,6 +40,11 @@ app:
     cancellation-notice: ${BOOKING_CANCELLATION_NOTICE:2h}
     # How far ahead appointments can be booked
     max-days-ahead: ${BOOKING_MAX_DAYS_AHEAD:60}
+  reminders:
+    # The scheduled job that emails customers before their appointment
+    enabled: ${BOOKING_REMINDERS_ENABLED:true}
+    lead-time: ${BOOKING_REMINDER_LEAD_TIME:24h}
+    check-interval: PT15M
   notifications:
     # Sender address for booking emails; empty uses the mail server's default
     mail-from: ${NOTIFICATION_MAIL_FROM:}

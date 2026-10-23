@@ -71,6 +71,9 @@ public class Booking {
     @Column(name = "cancelled_at", columnDefinition = "timestamptz")
     private Instant cancelledAt;
 
+    @Column(name = "reminder_sent_at", columnDefinition = "timestamptz")
+    private Instant reminderSentAt;
+
     protected Booking() {
         // for JPA
     }
@@ -89,6 +92,10 @@ public class Booking {
     public void cancel(Instant now) {
         status = BookingStatus.CANCELLED;
         cancelledAt = now;
+    }
+
+    public void markReminderSent(Instant now) {
+        reminderSentAt = now;
     }
 
     public boolean isConfirmed() {
@@ -153,5 +160,9 @@ public class Booking {
 
     public Instant getCancelledAt() {
         return cancelledAt;
+    }
+
+    public Instant getReminderSentAt() {
+        return reminderSentAt;
     }
 }

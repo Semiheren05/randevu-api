@@ -34,6 +34,23 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
                                          @Param("from") Instant from,
                                          @Param("to") Instant to);
 
+    /**
+     * Confirmed bookings that start in (now, until], have not been reminded yet, and were made
+     * at least {@code leadSeconds} before they start. Plain SQL, because "starts_at - created_at"
+     * per row is simplest to say with a PostgreSQL interval.
+     */
+    @Query(value = """
+            SELECT * FROM bookings
+            WHERE status = 'CONFIRMED'
+              AND reminder_sent_at IS NULL
+              AND starts_at > :now AND starts_at <= :until
+              AND starts_at - created_at >= make_interval(secs => :leadSeconds)
+            ORDER BY starts_at
+            """, nativeQuery = true)
+    List<Booking> findDueForReminder(@Param("now") Instant now,
+                                     @Param("until") Instant until,
+                                     @Param("leadSeconds") long leadSeconds);
+
     Page<Booking> findByCustomerEmail(String customerEmail, Pageable pageable);
 
     Optional<Booking> findByIdAndCustomerEmail(Long id, String customerEmail);

@@ -20,7 +20,9 @@ public record BookingNotification(
 
     public enum Type {
         CONFIRMED,
-        CANCELLED
+        CANCELLED,
+        /** Sent the day before; goes to the customer only. */
+        REMINDER
     }
 
     static BookingNotification of(Type type, Booking booking) {

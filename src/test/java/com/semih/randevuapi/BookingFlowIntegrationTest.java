@@ -1,6 +1,7 @@
 package com.semih.randevuapi;
 
 import com.jayway.jsonpath.JsonPath;
+import com.semih.randevuapi.booking.BookingReminderService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -62,6 +63,8 @@ class BookingFlowIntegrationTest {
     private MockMvc mockMvc;
     @Autowired
     private JdbcTemplate jdbcTemplate;
+    @Autowired
+    private BookingReminderService reminderService;
 
     private String ownerToken;
     private String customerToken;
@@ -72,8 +75,8 @@ class BookingFlowIntegrationTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        jdbcTemplate.execute("TRUNCATE bookings, closures, staff_hours, staff_offerings, staff, offerings, business_hours, "
-                + "businesses, users RESTART IDENTITY CASCADE");
+        jdbcTemplate.execute("TRUNCATE bookings, closures, staff_hours, staff_offerings, staff, offerings, "
+                + "business_hours, businesses, users RESTART IDENTITY CASCADE");
         day = LocalDate.now(ISTANBUL).plusDays(2);
 
         ownerToken = register("ali@example.com", "Ali", "OWNER");
@@ -443,6 +446,39 @@ class BookingFlowIntegrationTest {
                     {"day": "%s", "opensAt": "%s", "closesAt": "%s"}""".formatted(day, opensAt, closesAt));
         }
         return week.append("]").toString();
+    }
+
+    // --- Reminders ---
+
+    @Test
+    void remindersGoOutOnceAndOnlyForBookingsMadeWellAhead() {
+        insertBooking("20 hours", "CONFIRMED", "3 days");
+        insertBooking("5 hours", "CONFIRMED", "1 hour");
+        insertBooking("30 hours", "CONFIRMED", "3 days");
+        insertBooking("21 hours", "CANCELLED", "3 days");
+
+        assertThat(reminderService.sendDueReminders()).isEqualTo(1);
+        // Only the one starting in 20 hours, booked 3 days ago; the 5-hour one was booked too late,
+        // the 30-hour one is not due yet and the cancelled one needs no reminder
+        List<Long> reminded = jdbcTemplate.queryForList("""
+                SELECT round(extract(epoch FROM starts_at - now()) / 3600)::bigint FROM bookings
+                WHERE reminder_sent_at IS NOT NULL
+                """, Long.class);
+        assertThat(reminded).containsExactly(20L);
+
+        assertThat(reminderService.sendDueReminders()).isZero();
+    }
+
+    /** A booking for Ayşe starting {@code startsIn} from now (e.g. "20 hours"), made {@code madeAgo} ago. */
+    private void insertBooking(String startsIn, String status, String madeAgo) {
+        Long customerId = jdbcTemplate.queryForObject(
+                "SELECT id FROM users WHERE email = 'ayse@example.com'", Long.class);
+        jdbcTemplate.update("""
+                INSERT INTO bookings (business_id, offering_id, customer_id, starts_at, ends_at, price, status,
+                                      cancelled_at, created_at)
+                VALUES (?, ?, ?, now() + ?::interval, now() + ?::interval + interval '30 minutes', 250, ?,
+                        CASE WHEN ? = 'CANCELLED' THEN now() END, now() - ?::interval)
+                """, businessId, offeringId, customerId, startsIn, startsIn, status, status, madeAgo);
     }
 
     // --- Holidays and days off ---

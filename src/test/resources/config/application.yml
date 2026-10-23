@@ -1,0 +1,6 @@
+# Test-only settings, loaded on top of src/main/resources/application.yml
+# (Spring Boot reads both classpath:/application.yml and classpath:/config/application.yml).
+app:
+  reminders:
+    # Tests call BookingReminderService directly instead of waiting for the schedule
+    enabled: false
