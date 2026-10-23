@@ -1,8 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="960" height="760" viewBox="0 0 960 760" role="img" aria-label="randevu-api veritabanı şeması">
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="880" viewBox="0 0 960 880" role="img" aria-label="randevu-api veritabanı şeması">
   <title>randevu-api veritabanı şeması</title>
-  <rect width="960" height="760" rx="12" fill="#ffffff"/>
+  <rect width="960" height="880" rx="12" fill="#ffffff"/>
   <text x="30" y="40" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="20" fill="#1f2937" font-weight="bold" text-anchor="start">Veritabanı şeması</text>
-  <text x="30" y="62" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" fill="#6b7280" font-weight="normal" text-anchor="start">PostgreSQL 17 · Flyway migration'ları (V1–V3) · Hibernate sadece doğrular</text>
+  <text x="30" y="62" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" fill="#6b7280" font-weight="normal" text-anchor="start">PostgreSQL 17 · Flyway migration'ları (V1–V4) · Hibernate sadece doğrular</text>
   <rect x="30" y="90" width="270" height="132" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.2"/>
   <path d="M30,98 a8,8 0 0 1 8,-8 h254 a8,8 0 0 1 8,8 v26 h-270 z" fill="#0f766e"/>
   <text x="42" y="112" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#ffffff" font-weight="bold" text-anchor="start">business_hours</text>
@@ -59,71 +59,83 @@
   <text x="288" y="470" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">CUSTOMER|OWNER</text>
   <text x="42" y="492" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#1f2937" font-weight="normal" text-anchor="start">created_at</text>
   <text x="288" y="492" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">timestamptz</text>
-  <rect x="345" y="330" width="270" height="242" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.2"/>
-  <path d="M345,338 a8,8 0 0 1 8,-8 h254 a8,8 0 0 1 8,8 v26 h-270 z" fill="#0f766e"/>
-  <text x="357" y="352" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#ffffff" font-weight="bold" text-anchor="start">bookings</text>
-  <text x="357" y="382" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#0f766e" font-weight="bold" text-anchor="start">id</text>
-  <text x="603" y="382" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">bigint  PK</text>
-  <text x="357" y="404" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#1d4ed8" font-weight="bold" text-anchor="start">business_id</text>
-  <text x="603" y="404" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">→ businesses  FK</text>
-  <text x="357" y="426" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#1d4ed8" font-weight="bold" text-anchor="start">offering_id</text>
-  <text x="603" y="426" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">→ offerings  FK</text>
-  <text x="357" y="448" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#1d4ed8" font-weight="bold" text-anchor="start">customer_id</text>
-  <text x="603" y="448" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">→ users  FK</text>
-  <text x="357" y="470" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#1d4ed8" font-weight="bold" text-anchor="start">staff_id</text>
-  <text x="603" y="470" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">→ staff  FK · null</text>
-  <text x="357" y="492" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#1f2937" font-weight="normal" text-anchor="start">starts_at</text>
-  <text x="603" y="492" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">timestamptz</text>
-  <text x="357" y="514" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#1f2937" font-weight="normal" text-anchor="start">ends_at</text>
-  <text x="603" y="514" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">timestamptz</text>
-  <text x="357" y="536" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#1f2937" font-weight="normal" text-anchor="start">price</text>
-  <text x="603" y="536" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">numeric(10,2)</text>
-  <text x="357" y="558" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#1f2937" font-weight="normal" text-anchor="start">status</text>
-  <text x="603" y="558" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">CONFIRMED|CANCELLED</text>
-  <rect x="660" y="290" width="270" height="88" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.2"/>
-  <path d="M660,298 a8,8 0 0 1 8,-8 h254 a8,8 0 0 1 8,8 v26 h-270 z" fill="#0f766e"/>
-  <text x="672" y="312" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#ffffff" font-weight="bold" text-anchor="start">staff_offerings</text>
-  <text x="672" y="342" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#0f766e" font-weight="bold" text-anchor="start">staff_id</text>
-  <text x="918" y="342" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">→ staff  PK·FK</text>
-  <text x="672" y="364" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#0f766e" font-weight="bold" text-anchor="start">offering_id</text>
-  <text x="918" y="364" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">→ offerings  PK·FK</text>
-  <rect x="660" y="420" width="270" height="176" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.2"/>
-  <path d="M660,428 a8,8 0 0 1 8,-8 h254 a8,8 0 0 1 8,8 v26 h-270 z" fill="#0f766e"/>
-  <text x="672" y="442" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#ffffff" font-weight="bold" text-anchor="start">offerings</text>
-  <text x="672" y="472" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#0f766e" font-weight="bold" text-anchor="start">id</text>
-  <text x="918" y="472" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">bigint  PK</text>
-  <text x="672" y="494" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#1d4ed8" font-weight="bold" text-anchor="start">business_id</text>
-  <text x="918" y="494" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">→ businesses  FK</text>
-  <text x="672" y="516" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#1f2937" font-weight="normal" text-anchor="start">name</text>
-  <text x="918" y="516" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">varchar</text>
-  <text x="672" y="538" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#1f2937" font-weight="normal" text-anchor="start">duration_minutes</text>
-  <text x="918" y="538" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">5..480</text>
-  <text x="672" y="560" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#1f2937" font-weight="normal" text-anchor="start">price</text>
-  <text x="918" y="560" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">numeric(10,2)</text>
-  <text x="672" y="582" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#1f2937" font-weight="normal" text-anchor="start">active</text>
-  <text x="918" y="582" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">boolean</text>
+  <rect x="345" y="360" width="270" height="242" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.2"/>
+  <path d="M345,368 a8,8 0 0 1 8,-8 h254 a8,8 0 0 1 8,8 v26 h-270 z" fill="#0f766e"/>
+  <text x="357" y="382" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#ffffff" font-weight="bold" text-anchor="start">bookings</text>
+  <text x="357" y="412" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#0f766e" font-weight="bold" text-anchor="start">id</text>
+  <text x="603" y="412" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">bigint  PK</text>
+  <text x="357" y="434" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#1d4ed8" font-weight="bold" text-anchor="start">business_id</text>
+  <text x="603" y="434" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">→ businesses  FK</text>
+  <text x="357" y="456" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#1d4ed8" font-weight="bold" text-anchor="start">offering_id</text>
+  <text x="603" y="456" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">→ offerings  FK</text>
+  <text x="357" y="478" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#1d4ed8" font-weight="bold" text-anchor="start">customer_id</text>
+  <text x="603" y="478" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">→ users  FK</text>
+  <text x="357" y="500" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#1d4ed8" font-weight="bold" text-anchor="start">staff_id</text>
+  <text x="603" y="500" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">→ staff  FK · null</text>
+  <text x="357" y="522" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#1f2937" font-weight="normal" text-anchor="start">starts_at</text>
+  <text x="603" y="522" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">timestamptz</text>
+  <text x="357" y="544" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#1f2937" font-weight="normal" text-anchor="start">ends_at</text>
+  <text x="603" y="544" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">timestamptz</text>
+  <text x="357" y="566" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#1f2937" font-weight="normal" text-anchor="start">price</text>
+  <text x="603" y="566" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">numeric(10,2)</text>
+  <text x="357" y="588" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#1f2937" font-weight="normal" text-anchor="start">status</text>
+  <text x="603" y="588" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">CONFIRMED|CANCELLED</text>
+  <rect x="660" y="270" width="270" height="132" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.2"/>
+  <path d="M660,278 a8,8 0 0 1 8,-8 h254 a8,8 0 0 1 8,8 v26 h-270 z" fill="#0f766e"/>
+  <text x="672" y="292" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#ffffff" font-weight="bold" text-anchor="start">staff_hours</text>
+  <text x="672" y="322" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#0f766e" font-weight="bold" text-anchor="start">staff_id</text>
+  <text x="918" y="322" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">→ staff  PK·FK</text>
+  <text x="672" y="344" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#0f766e" font-weight="bold" text-anchor="start">day_of_week</text>
+  <text x="918" y="344" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">1..7  PK</text>
+  <text x="672" y="366" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#1f2937" font-weight="normal" text-anchor="start">opens_at</text>
+  <text x="918" y="366" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">time</text>
+  <text x="672" y="388" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#1f2937" font-weight="normal" text-anchor="start">closes_at</text>
+  <text x="918" y="388" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">time</text>
+  <rect x="660" y="428" width="270" height="88" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.2"/>
+  <path d="M660,436 a8,8 0 0 1 8,-8 h254 a8,8 0 0 1 8,8 v26 h-270 z" fill="#0f766e"/>
+  <text x="672" y="450" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#ffffff" font-weight="bold" text-anchor="start">staff_offerings</text>
+  <text x="672" y="480" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#0f766e" font-weight="bold" text-anchor="start">staff_id</text>
+  <text x="918" y="480" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">→ staff  PK·FK</text>
+  <text x="672" y="502" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#0f766e" font-weight="bold" text-anchor="start">offering_id</text>
+  <text x="918" y="502" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">→ offerings  PK·FK</text>
+  <rect x="660" y="542" width="270" height="176" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.2"/>
+  <path d="M660,550 a8,8 0 0 1 8,-8 h254 a8,8 0 0 1 8,8 v26 h-270 z" fill="#0f766e"/>
+  <text x="672" y="564" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#ffffff" font-weight="bold" text-anchor="start">offerings</text>
+  <text x="672" y="594" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#0f766e" font-weight="bold" text-anchor="start">id</text>
+  <text x="918" y="594" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">bigint  PK</text>
+  <text x="672" y="616" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#1d4ed8" font-weight="bold" text-anchor="start">business_id</text>
+  <text x="918" y="616" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">→ businesses  FK</text>
+  <text x="672" y="638" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#1f2937" font-weight="normal" text-anchor="start">name</text>
+  <text x="918" y="638" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">varchar</text>
+  <text x="672" y="660" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#1f2937" font-weight="normal" text-anchor="start">duration_minutes</text>
+  <text x="918" y="660" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">5..480</text>
+  <text x="672" y="682" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#1f2937" font-weight="normal" text-anchor="start">price</text>
+  <text x="918" y="682" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">numeric(10,2)</text>
+  <text x="672" y="704" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#1f2937" font-weight="normal" text-anchor="start">active</text>
+  <text x="918" y="704" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="end">boolean</text>
   <path d="M345,140 H300" fill="none" stroke="#94a3b8" stroke-width="1.6"/>
   <text x="322" y="132" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="middle">1 ─ n</text>
   <path d="M615,140 H660" fill="none" stroke="#94a3b8" stroke-width="1.6"/>
   <text x="637" y="132" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="middle">1 ─ n</text>
   <path d="M165,330 V306 H322 V230 H345" fill="none" stroke="#94a3b8" stroke-width="1.6"/>
   <text x="243" y="298" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="middle">1 ─ n  sahip</text>
-  <path d="M300,440 H345" fill="none" stroke="#94a3b8" stroke-width="1.6"/>
-  <text x="322" y="432" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="middle">1 ─ n</text>
-  <path d="M480,288 V330" fill="none" stroke="#94a3b8" stroke-width="1.6"/>
-  <text x="505" y="315" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="middle">1 ─ n</text>
-  <path d="M640,200 H637 V470 H615" fill="none" stroke="#94a3b8" stroke-width="1.6"/>
-  <path d="M660,200 H640" fill="none" stroke="#94a3b8" stroke-width="1.6"/>
-  <text x="631" y="335" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="middle" transform="rotate(-90 631 335)">1 ─ n  çalışan</text>
-  <path d="M795,244 V290" fill="none" stroke="#94a3b8" stroke-width="1.6"/>
-  <text x="822" y="271" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="middle">1 ─ n</text>
-  <path d="M795,420 V378" fill="none" stroke="#94a3b8" stroke-width="1.6"/>
-  <text x="822" y="403" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="middle">1 ─ n</text>
-  <path d="M660,540 H615" fill="none" stroke="#94a3b8" stroke-width="1.6"/>
-  <text x="637" y="532" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="middle">1 ─ n</text>
-  <rect x="30" y="626" width="900" height="112" rx="10" fill="#fee2e2" stroke="#b91c1c" stroke-width="1.2"/>
-  <text x="48" y="652" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#b91c1c" font-weight="bold" text-anchor="start">ex_bookings_no_overlap_staff     EXCLUDE (staff_id =, tstzrange(starts_at, ends_at) &amp;&amp;)  WHERE staff_id IS NOT NULL</text>
-  <text x="48" y="674" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#b91c1c" font-weight="bold" text-anchor="start">ex_bookings_no_overlap_business  EXCLUDE (business_id =, tstzrange(starts_at, ends_at) &amp;&amp;)  WHERE staff_id IS NULL</text>
-  <text x="48" y="700" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" fill="#1f2937" font-weight="normal" text-anchor="start">Bir çalışanın iki onaylı randevusu çakışamaz; çalışanı olmayan işletmede bu kural işletmenin kendisi için geçerli.</text>
-  <text x="48" y="722" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" fill="#1f2937" font-weight="normal" text-anchor="start">İki istek aynı saate aynı anda gelse bile veritabanı yalnızca birini kabul eder.</text>
+  <path d="M300,474 H345" fill="none" stroke="#94a3b8" stroke-width="1.6"/>
+  <text x="322" y="466" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="middle">1 ─ n</text>
+  <path d="M480,288 V360" fill="none" stroke="#94a3b8" stroke-width="1.6"/>
+  <text x="505" y="328" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="middle">1 ─ n</text>
+  <path d="M660,200 H637 V496 H615" fill="none" stroke="#94a3b8" stroke-width="1.6"/>
+  <text x="631" y="350" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="middle" transform="rotate(-90 631 350)">1 ─ n  çalışan</text>
+  <path d="M795,244 V270" fill="none" stroke="#94a3b8" stroke-width="1.6"/>
+  <text x="822" y="261" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="middle">1 ─ n</text>
+  <path d="M930,170 H944 V468 H930" fill="none" stroke="#94a3b8" stroke-width="1.6"/>
+  <text x="956" y="319" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="middle" transform="rotate(-90 956 319)">1 ─ n</text>
+  <path d="M795,542 V516" fill="none" stroke="#94a3b8" stroke-width="1.6"/>
+  <text x="822" y="533" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="middle">1 ─ n</text>
+  <path d="M660,580 H615" fill="none" stroke="#94a3b8" stroke-width="1.6"/>
+  <text x="637" y="572" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11.5" fill="#6b7280" font-weight="normal" text-anchor="middle">1 ─ n</text>
+  <rect x="30" y="748" width="900" height="112" rx="10" fill="#fee2e2" stroke="#b91c1c" stroke-width="1.2"/>
+  <text x="48" y="774" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#b91c1c" font-weight="bold" text-anchor="start">ex_bookings_no_overlap_staff     EXCLUDE (staff_id =, tstzrange(starts_at, ends_at) &amp;&amp;)  WHERE staff_id IS NOT NULL</text>
+  <text x="48" y="796" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#b91c1c" font-weight="bold" text-anchor="start">ex_bookings_no_overlap_business  EXCLUDE (business_id =, tstzrange(starts_at, ends_at) &amp;&amp;)  WHERE staff_id IS NULL</text>
+  <text x="48" y="822" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" fill="#1f2937" font-weight="normal" text-anchor="start">Bir çalışanın iki onaylı randevusu çakışamaz; çalışanı olmayan işletmede bu kural işletmenin kendisi için geçerli.</text>
+  <text x="48" y="844" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" fill="#1f2937" font-weight="normal" text-anchor="start">İki istek aynı saate aynı anda gelse bile veritabanı yalnızca birini kabul eder.</text>
 </svg>

@@ -26,12 +26,14 @@ Bu projeyi freelance platformlarındaki (Upwork, Freelancer) randevu ve rezervas
 
 - **Çok işletmeli**: her işletme sahibi kendi işletmelerini yönetir; başkasının işletmesi ona hiç yokmuş gibi görünür (404)
 - **Hizmetler ve çalışma saatleri**: süre ve fiyatıyla hizmetler, haftanın her günü için açılış/kapanış saati
-- **Çalışanlar**: her çalışanın kendi takvimi var, iki kuaförlü bir salon aynı saate iki randevu alabilir. Çalışana hangi hizmetleri yaptığı atanabilir (boş bırakılırsa hepsini yapar). Müşteri çalışan seçebilir; seçmezse o saatte boş olan ilk çalışan atanır. Çalışanı olmayan işletme tek takvimle çalışmaya devam eder
+- **Çalışanlar**: her çalışanın kendi takvimi var, iki kuaförlü bir salon aynı saate iki randevu alabilir. Çalışana hangi hizmetleri yaptığı atanabilir (boş bırakılırsa hepsini yapar). Müşteri çalışan seçebilir. Çalışanı olmayan işletme tek takvimle çalışmaya devam eder
+- **Çalışana özel çalışma saatleri**: yarı zamanlı biri yalnızca kendi günlerinde ve saatlerinde randevu alır. Geçerli olan, çalışanın saatleriyle işletmenin açık olduğu saatlerin kesişimi; saat girilmeyen çalışan işletmenin saatlerini kullanır
+- **Dengeli dağıtım**: müşteri çalışan seçmezse, o saatte boş olanlar arasından **o gün en az dolu süresi olan** çalışan atanır (randevu sayısı değil dakika sayılır; eşitlikte ilk eklenen). Böylece iş tek kişide birikmez
 - **Dinamik boş saatler**: çalışma saatlerinden onaylı randevular ve geçmiş saatler çıkarılır, kalanlar 15 dakikalık adımlarla sunulur. Çalışanlı işletmede bir saat, o hizmeti yapan çalışanlardan en az biri boşsa listelenir
-- **Çifte rezervasyon koruması**: iki aşamalı. Önce uygulama boş saatleri kontrol eder; aynı anda gelen iki istek bu kontrolü birlikte geçse bile PostgreSQL'in `EXCLUDE` kısıtları (çalışan bazında ya da çalışanı olmayan işletmede işletme bazında) yalnızca birini kabul eder, diğeri `409` alır
+- **Çifte rezervasyon koruması**: iki aşamalı. Önce uygulama boş saatleri kontrol eder; aynı anda gelen iki istek bu kontrolü birlikte geçse bile PostgreSQL'in `EXCLUDE` kısıtları (çalışan bazında ya da çalışanı olmayan işletmede işletme bazında) yalnızca birini kabul eder. Çalışan seçilmemişse geri çevrilen istek bir kez daha denenir ve boş olan diğer çalışana gider; kimse boş değilse `409` alır
 - **İptal kuralları**: müşteri randevudan 2 saat öncesine kadar iptal edebilir; işletme sahibi yaklaşan her randevuyu iptal edebilir
 - **E-posta bildirimleri**: randevu alındığında ve iptal edildiğinde müşteriye ve işletmeye Türkçe e-posta gider. Bildirim, kayıt kesinleştikten sonra ayrı bir thread'de gönderilir; mail sunucusu çökse bile randevu etkilenmez
-- **İstatistikler**: seçilen dönemde onaylı ve iptal edilen randevu sayısı, gelir ve en çok tercih edilen hizmetler
+- **İstatistikler**: seçilen dönemde onaylı ve iptal edilen randevu sayısı, gelir, en çok tercih edilen hizmetler ve çalışan başına randevu sayısı
 - **Saat dilimi desteği**: zamanlar veritabanında UTC saklanır, API'de işletmenin kendi saat diliminde gösterilir
 - **Tutarlı hata yanıtları**: her hata, 401/403 dahil, [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) problem-detail JSON'u olarak döner
 
@@ -51,7 +53,7 @@ Bu projeyi freelance platformlarındaki (Upwork, Freelancer) randevu ve rezervas
 
 ![Boş saat hesabı](docs/bos-saat-hesabi.svg)
 
-Diyagram tek bir takvimi gösteriyor; çalışanlı işletmede aynı hesap her çalışan için ayrı yapılıyor ve sonuçlar birleştiriliyor. Hesap `AvailabilityCalculator` içinde, veritabanına ve saate dokunmayan saf bir fonksiyon. Bu sayede her kural (geçmiş saatler, çakışmalar, kapanışa sığmayan hizmetler, gece yarısını aşan saatler) birim testleriyle tek tek denenebiliyor.
+Diyagram tek bir takvimi gösteriyor. Çalışanlı işletmede aynı hesap her çalışan için, çalışanın kendi saatleri işletme saatlerine kırpılarak ayrı yapılıyor. Çalışanlar o günkü dolu sürelerine göre sıralanıp sırayla işlendiği için her boş saat, o saatte boş olanların en az dolu olanına düşüyor. Hesap `AvailabilityCalculator` içinde, veritabanına ve saate dokunmayan saf bir fonksiyon. Bu sayede her kural (geçmiş saatler, çakışmalar, kapanışa sığmayan hizmetler, gece yarısını aşan saatler) birim testleriyle tek tek denenebiliyor.
 
 ## Çalıştırma
 
@@ -109,9 +111,10 @@ mvn spring-boot:run
 | `PUT` `DELETE` | `/api/owner/businesses/{id}/offerings/{offeringId}` | `OWNER` | Hizmeti güncelle / pasifleştir (204) |
 | `GET` `POST` | `/api/owner/businesses/{id}/staff` | `OWNER` | Çalışanlar / çalışan ekle (201) |
 | `PUT` `DELETE` | `/api/owner/businesses/{id}/staff/{staffId}` | `OWNER` | Çalışanı güncelle / pasifleştir (204) |
+| `PUT` | `/api/owner/businesses/{id}/staff/{staffId}/hours` | `OWNER` | Çalışanın haftalık saatleri; boş liste `[]` işletme saatlerine döndürür |
 | `GET` | `/api/owner/businesses/{id}/bookings?date=2026-10-23` | `OWNER` | Günün randevuları, saat sırasıyla (`&staffId=3` ile tek çalışan) |
 | `POST` | `/api/owner/businesses/{id}/bookings/{bookingId}/cancel` | `OWNER` | Randevuyu iptal et |
-| `GET` | `/api/owner/businesses/{id}/stats?from=2026-10-01&to=2026-10-31` | `OWNER` | Dönem istatistikleri |
+| `GET` | `/api/owner/businesses/{id}/stats?from=2026-10-01&to=2026-10-31` | `OWNER` | Dönem istatistikleri, çalışan başına randevu sayısı dahil |
 | `GET` | `/api/users/me` | giriş yapmış kullanıcı | Mevcut kullanıcı |
 
 Örnek akış:
@@ -127,7 +130,12 @@ curl -X POST localhost:8080/api/owner/businesses \
 curl -X POST localhost:8080/api/owner/businesses/1/staff \
   -H 'Authorization: Bearer <owner-token>' -H 'Content-Type: application/json' \
   -d '{"name":"Mehmet","offeringIds":[]}'
-# {"id":1,"name":"Mehmet","active":true,"everyService":true,"offeringIds":[]}
+# {"id":1,"name":"Mehmet","active":true,"everyService":true,"offeringIds":[],"followsBusinessHours":true,...}
+
+# İsteğe bağlı: Mehmet yalnızca pazartesi ve salı öğleden sonra çalışır
+curl -X PUT localhost:8080/api/owner/businesses/1/staff/1/hours \
+  -H 'Authorization: Bearer <owner-token>' -H 'Content-Type: application/json' \
+  -d '[{"day":"MONDAY","opensAt":"13:00","closesAt":"18:00"},{"day":"TUESDAY","opensAt":"13:00","closesAt":"18:00"}]'
 
 # 2. Müşteri boş saatlere bakar (giriş gerekmez)
 curl 'localhost:8080/api/businesses/kuafor-ali/availability?offeringId=1&date=2026-10-23'
@@ -173,8 +181,8 @@ docs/                              README'deki diyagramlar
 mvn verify
 ```
 
-- **Birim testleri**: boş saat hesabı (geçmiş saatler, çakışmalar, gece yarısı), randevu kuralları (iptal süresi, yarışı kaybeden istek), çalışan ataması (boş olan ilk çalışan, hizmeti yapmayan çalışan, seçilen çalışan), e-posta içerikleri, JWT ve kimlik doğrulama
-- **Entegrasyon testleri**: Testcontainers ile gerçek bir PostgreSQL başlatılır (Docker gerekir; Docker yoksa atlanır). Testler baştan sona akışı dener: işletme kurma, boş saatler, randevu, iptal, istatistikler, iki çalışanla aynı saate iki randevu, çalışan seçimi ve pasifleştirme, rol ve sahiplik kontrolleri. Aynı saate **aynı anda** iki randevu isteği gönderip yalnızca birinin kabul edildiğini, bir de doğrudan SQL ile çakışan kayıt eklenemediğini (işletme bazında ve çalışan bazında) doğrulayan testler var.
+- **Birim testleri**: boş saat hesabı (geçmiş saatler, çakışmalar, gece yarısı), randevu kuralları (iptal süresi, yarışı kaybeden istek), çalışan ataması (en az dolu çalışan, dakikaya göre denge, eşitlikte ilk eklenen, hizmeti yapmayan ya da o gün çalışmayan çalışan, seçilen çalışan), çalışan saatlerinin işletme saatlerine kırpılması, çalışan başına istatistik, e-posta içerikleri, JWT ve kimlik doğrulama
+- **Entegrasyon testleri**: Testcontainers ile gerçek bir PostgreSQL başlatılır (Docker gerekir; Docker yoksa atlanır). Testler baştan sona akışı dener: işletme kurma, boş saatler, randevu, iptal, istatistikler, iki çalışanla aynı saate iki randevu, çalışan seçimi ve pasifleştirme, çalışana özel saatler ve sıfırlanması, randevuların çalışanlara dengeli dağılması, rol ve sahiplik kontrolleri. Aynı saate **aynı anda** iki randevu isteği gönderip tek takvimli işletmede yalnızca birinin, iki çalışanlı işletmede ikisinin de (farklı çalışanlara) kabul edildiğini, bir de doğrudan SQL ile çakışan kayıt eklenemediğini (işletme bazında ve çalışan bazında) doğrulayan testler var.
 
 GitHub Actions her push'ta tüm testleri çalıştırıp Docker imajını derliyor.
 
@@ -184,7 +192,7 @@ GitHub Actions her push'ta tüm testleri çalıştırıp Docker imajını derliy
 - [x] Boş saat hesabı ve çifte rezervasyona karşı veritabanı kısıtı
 - [x] E-posta bildirimleri ve işletme istatistikleri
 - [x] Çalışanlar: aynı işletmede birden fazla kişinin paralel randevu alabilmesi
-- [ ] Çalışana özel çalışma saatleri ve randevuların çalışanlar arasında dengeli dağıtılması
+- [x] Çalışana özel çalışma saatleri ve randevuların çalışanlar arasında dengeli dağıtılması
 - [ ] Tatil ve izin günleri (tek seferlik kapalı günler)
 - [ ] Randevudan bir gün önce hatırlatma e-postası (`@Scheduled`)
 - [ ] Online ödeme (Stripe / iyzico test modu)
