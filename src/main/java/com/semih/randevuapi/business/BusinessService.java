@@ -110,19 +110,7 @@ public class BusinessService {
     @Transactional
     public BusinessResponse replaceOpeningHours(Long businessId, List<OpeningHoursRequest> days, String ownerEmail) {
         Business business = requireOwned(businessId, ownerEmail);
-        Set<DayOfWeek> seen = new HashSet<>();
-        List<OpeningHours> hours = days.stream()
-                .map(day -> {
-                    if (!seen.add(day.day())) {
-                        throw new InvalidRequestException(day.day() + " is listed more than once");
-                    }
-                    if (!day.opensAt().isBefore(day.closesAt())) {
-                        throw new InvalidRequestException(day.day() + ": opening time must be before closing time");
-                    }
-                    return new OpeningHours(day.day(), day.opensAt(), day.closesAt());
-                })
-                .toList();
-        business.replaceOpeningHours(hours);
+        business.replaceOpeningHours(toWeek(days));
         return ownerView(business);
     }
 
@@ -175,6 +163,20 @@ public class BusinessService {
     }
 
     /**
+     * Replaces a staff member's weekly hours; days left out are days off. An empty list makes
+     * the person follow the business's opening hours again. Only the part inside the
+     * business's opening hours can be booked.
+     */
+    @Transactional
+    public StaffResponse replaceStaffHours(Long businessId, Long staffId, List<OpeningHoursRequest> days,
+                                           String ownerEmail) {
+        requireOwned(businessId, ownerEmail);
+        Staff staff = findStaff(businessId, staffId);
+        staff.replaceWorkingHours(toWeek(days));
+        return StaffResponse.from(staff);
+    }
+
+    /**
      * Deactivates instead of deleting: past bookings keep the person. Their upcoming
      * bookings stay as they are; the owner decides whether to cancel them.
      */
@@ -192,6 +194,22 @@ public class BusinessService {
     public Business requireOwned(Long businessId, String ownerEmail) {
         return businessRepository.findByIdAndOwnerEmail(businessId, ownerEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("Business not found"));
+    }
+
+    /** Checks a weekly schedule: each day at most once, and every day opens before it closes. */
+    private static List<OpeningHours> toWeek(List<OpeningHoursRequest> days) {
+        Set<DayOfWeek> seen = new HashSet<>();
+        return days.stream()
+                .map(day -> {
+                    if (!seen.add(day.day())) {
+                        throw new InvalidRequestException(day.day() + " is listed more than once");
+                    }
+                    if (!day.opensAt().isBefore(day.closesAt())) {
+                        throw new InvalidRequestException(day.day() + ": opening time must be before closing time");
+                    }
+                    return new OpeningHours(day.day(), day.opensAt(), day.closesAt());
+                })
+                .toList();
     }
 
     private BusinessResponse ownerView(Business business) {

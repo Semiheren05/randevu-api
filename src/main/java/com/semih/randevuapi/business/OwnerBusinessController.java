@@ -128,6 +128,15 @@ public class OwnerBusinessController {
         return businessService.updateStaff(businessId, staffId, request, auth.getName());
     }
 
+    @PutMapping("/{businessId}/staff/{staffId}/hours")
+    @Operation(summary = "Replace a staff member's weekly hours (days left out are off; [] follows the business)")
+    public StaffResponse replaceStaffHours(@PathVariable Long businessId,
+                                           @PathVariable Long staffId,
+                                           @RequestBody @Size(max = 7) List<@Valid OpeningHoursRequest> days,
+                                           Authentication auth) {
+        return businessService.replaceStaffHours(businessId, staffId, days, auth.getName());
+    }
+
     @DeleteMapping("/{businessId}/staff/{staffId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Deactivate a staff member; they take no new bookings, existing ones stay")

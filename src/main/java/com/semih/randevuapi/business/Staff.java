@@ -1,6 +1,8 @@
 package com.semih.randevuapi.business;
 
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -13,9 +15,11 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
+import java.time.DayOfWeek;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -50,6 +54,11 @@ public class Staff {
             inverseJoinColumns = @JoinColumn(name = "offering_id"))
     private Set<Offering> offerings = new HashSet<>();
 
+    /** The person's own weekly hours. Empty means they follow the business's opening hours. */
+    @ElementCollection
+    @CollectionTable(name = "staff_hours", joinColumns = @JoinColumn(name = "staff_id"))
+    private Set<OpeningHours> workingHours = new HashSet<>();
+
     @Column(name = "created_at", nullable = false, updatable = false, columnDefinition = "timestamptz")
     private Instant createdAt;
 
@@ -67,6 +76,31 @@ public class Staff {
         this.name = name;
         this.offerings.clear();
         this.offerings.addAll(offerings);
+    }
+
+    /** Replaces the whole week; an empty list goes back to the business's opening hours. */
+    public void replaceWorkingHours(Collection<OpeningHours> hours) {
+        workingHours.clear();
+        workingHours.addAll(hours);
+    }
+
+    /**
+     * When this person can be booked on a day: their own hours cut to the business's opening
+     * hours, or simply the opening hours when they have no hours of their own.
+     */
+    public Optional<OpeningHours> availableHours(OpeningHours businessHours) {
+        if (followsBusinessHours()) {
+            return Optional.of(businessHours);
+        }
+        return workingHoursOn(businessHours.getDayOfWeek()).flatMap(own -> own.intersect(businessHours));
+    }
+
+    public boolean followsBusinessHours() {
+        return workingHours.isEmpty();
+    }
+
+    public Optional<OpeningHours> workingHoursOn(DayOfWeek day) {
+        return workingHours.stream().filter(h -> h.getDayOfWeek() == day).findFirst();
     }
 
     public void deactivate() {
@@ -107,6 +141,10 @@ public class Staff {
 
     public Set<Offering> getOfferings() {
         return Set.copyOf(offerings);
+    }
+
+    public Set<OpeningHours> getWorkingHours() {
+        return Set.copyOf(workingHours);
     }
 
     public Instant getCreatedAt() {

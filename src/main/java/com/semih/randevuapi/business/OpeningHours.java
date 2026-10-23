@@ -7,10 +7,12 @@ import jakarta.persistence.Embeddable;
 import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
- * Opening hours for one day of the week, e.g. Monday 09:00-18:00. A day with no entry is
- * a closed day. Equality is by day only: a business has at most one entry per day.
+ * Hours for one day of the week, e.g. Monday 09:00-18:00: a business's opening hours or a
+ * staff member's working hours. A day with no entry is a day off. Equality is by day only:
+ * there is at most one entry per day.
  */
 @Embeddable
 public class OpeningHours {
@@ -36,6 +38,19 @@ public class OpeningHours {
         this.dayOfWeek = dayOfWeek;
         this.opensAt = opensAt;
         this.closesAt = closesAt;
+    }
+
+    /**
+     * The part of the day both cover, e.g. a staff member working 08:00-13:00 in a salon open
+     * 09:00-18:00 can be booked 09:00-13:00. Empty when they do not overlap.
+     */
+    public Optional<OpeningHours> intersect(OpeningHours other) {
+        if (dayOfWeek != other.dayOfWeek) {
+            return Optional.empty();
+        }
+        LocalTime start = opensAt.isAfter(other.opensAt) ? opensAt : other.opensAt;
+        LocalTime end = closesAt.isBefore(other.closesAt) ? closesAt : other.closesAt;
+        return start.isBefore(end) ? Optional.of(new OpeningHours(dayOfWeek, start, end)) : Optional.empty();
     }
 
     public DayOfWeek getDayOfWeek() {
