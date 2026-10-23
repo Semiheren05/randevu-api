@@ -3,12 +3,15 @@ package com.semih.randevuapi.business;
 import com.semih.randevuapi.business.dto.BusinessRequest;
 import com.semih.randevuapi.business.dto.BusinessResponse;
 import com.semih.randevuapi.business.dto.BusinessSummaryResponse;
+import com.semih.randevuapi.business.dto.ClosureRequest;
+import com.semih.randevuapi.business.dto.ClosureResponse;
 import com.semih.randevuapi.business.dto.OfferingRequest;
 import com.semih.randevuapi.business.dto.OfferingResponse;
 import com.semih.randevuapi.business.dto.OpeningHoursRequest;
 import com.semih.randevuapi.business.dto.StaffRequest;
 import com.semih.randevuapi.business.dto.StaffResponse;
 import com.semih.randevuapi.common.Slugs;
+import com.semih.randevuapi.common.exception.ConflictException;
 import com.semih.randevuapi.common.exception.InvalidRequestException;
 import com.semih.randevuapi.common.exception.ResourceNotFoundException;
 import com.semih.randevuapi.user.User;
@@ -18,9 +21,13 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.DateTimeException;
 import java.time.DayOfWeek;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -33,20 +40,27 @@ public class BusinessService {
 
     /** "kuafor-ali", "kuafor-ali-2", ... gives up after this many tries. */
     private static final int MAX_SLUG_ATTEMPTS = 50;
+    private static final long MAX_CLOSURE_DAYS = 366;
 
     private final BusinessRepository businessRepository;
     private final OfferingRepository offeringRepository;
     private final StaffRepository staffRepository;
+    private final ClosureRepository closureRepository;
     private final UserRepository userRepository;
+    private final Clock clock;
 
     public BusinessService(BusinessRepository businessRepository,
                            OfferingRepository offeringRepository,
                            StaffRepository staffRepository,
-                           UserRepository userRepository) {
+                           ClosureRepository closureRepository,
+                           UserRepository userRepository,
+                           Clock clock) {
         this.businessRepository = businessRepository;
         this.offeringRepository = offeringRepository;
         this.staffRepository = staffRepository;
+        this.closureRepository = closureRepository;
         this.userRepository = userRepository;
+        this.clock = clock;
     }
 
     // --- Public ---
@@ -186,6 +200,59 @@ public class BusinessService {
         findStaff(businessId, staffId).deactivate();
     }
 
+    // --- Owner: holidays and days off ---
+
+    @Transactional(readOnly = true)
+    public List<ClosureResponse> listClosures(Long businessId, String ownerEmail) {
+        Business business = requireOwned(businessId, ownerEmail);
+        return closureRepository
+                .findByBusinessIdAndEndsOnGreaterThanEqualOrderByStartsOnAscIdAsc(businessId, today(business))
+                .stream()
+                .map(ClosureResponse::from)
+                .toList();
+    }
+
+    /**
+     * Closes the business (or one staff member) on one or more days in a row. Days that
+     * already have confirmed bookings cannot be closed: the owner cancels those bookings first,
+     * so customers always hear about it instead of finding a closed door.
+     */
+    @Transactional
+    public ClosureResponse addClosure(Long businessId, ClosureRequest request, String ownerEmail) {
+        Business business = requireOwned(businessId, ownerEmail);
+        if (request.endsOn().isBefore(request.startsOn())) {
+            throw new InvalidRequestException("'endsOn' must not be before 'startsOn'");
+        }
+        if (request.endsOn().isBefore(today(business))) {
+            throw new InvalidRequestException("A closure cannot be entirely in the past");
+        }
+        if (ChronoUnit.DAYS.between(request.startsOn(), request.endsOn()) >= MAX_CLOSURE_DAYS) {
+            throw new InvalidRequestException("A closure can be at most " + MAX_CLOSURE_DAYS + " days long");
+        }
+        Staff staff = request.staffId() == null ? null : findStaff(businessId, request.staffId());
+
+        Instant from = request.startsOn().atStartOfDay(business.getZoneId()).toInstant();
+        Instant to = request.endsOn().plusDays(1).atStartOfDay(business.getZoneId()).toInstant();
+        long bookings = staff == null
+                ? closureRepository.countConfirmedBookings(businessId, from, to)
+                : closureRepository.countConfirmedBookingsForStaff(businessId, staff.getId(), from, to);
+        if (bookings > 0) {
+            throw new ConflictException("Bookings in this period",
+                    bookings + " confirmed booking(s) fall in this period; cancel them first");
+        }
+        Closure closure = closureRepository.save(new Closure(
+                business, staff, request.startsOn(), request.endsOn(), trimToNull(request.reason())));
+        return ClosureResponse.from(closure);
+    }
+
+    @Transactional
+    public void deleteClosure(Long businessId, Long closureId, String ownerEmail) {
+        requireOwned(businessId, ownerEmail);
+        Closure closure = closureRepository.findByIdAndBusinessId(closureId, businessId)
+                .orElseThrow(() -> new ResourceNotFoundException("Closure not found"));
+        closureRepository.delete(closure);
+    }
+
     /**
      * Someone else's business answers 404, not 403, so owners cannot probe which
      * business ids exist.
@@ -210,6 +277,10 @@ public class BusinessService {
                     return new OpeningHours(day.day(), day.opensAt(), day.closesAt());
                 })
                 .toList();
+    }
+
+    private LocalDate today(Business business) {
+        return LocalDate.now(clock.withZone(business.getZoneId()));
     }
 
     private BusinessResponse ownerView(Business business) {

@@ -4,6 +4,8 @@ import com.semih.randevuapi.booking.dto.BookingRequest;
 import com.semih.randevuapi.booking.dto.StatsResponse;
 import com.semih.randevuapi.business.Business;
 import com.semih.randevuapi.business.BusinessService;
+import com.semih.randevuapi.business.Closure;
+import com.semih.randevuapi.business.ClosureRepository;
 import com.semih.randevuapi.business.Offering;
 import com.semih.randevuapi.business.OfferingRepository;
 import com.semih.randevuapi.business.OpeningHours;
@@ -61,6 +63,8 @@ class BookingServiceTest {
     @Mock
     private StaffRepository staffRepository;
     @Mock
+    private ClosureRepository closureRepository;
+    @Mock
     private UserRepository userRepository;
     @Mock
     private BusinessService businessService;
@@ -75,8 +79,8 @@ class BookingServiceTest {
     @BeforeEach
     void setUp() {
         BookingProperties properties = new BookingProperties(Duration.ofMinutes(15), Duration.ofHours(2), 60);
-        bookingService = new BookingService(bookingRepository, offeringRepository, staffRepository, userRepository,
-                businessService, properties, events, Clock.fixed(NOW, ISTANBUL));
+        bookingService = new BookingService(bookingRepository, offeringRepository, staffRepository, closureRepository,
+                userRepository, businessService, properties, events, Clock.fixed(NOW, ISTANBUL));
 
         User owner = new User("owner@example.com", "hash", "Ali", Role.OWNER);
         customer = new User("ayse@example.com", "hash", "Ayşe", Role.CUSTOMER);
@@ -250,6 +254,48 @@ class BookingServiceTest {
 
         assertThatThrownBy(() -> bookingService.book(request("2026-10-23T10:30"), "ayse@example.com"))
                 .isInstanceOf(SlotNotAvailableException.class);
+    }
+
+    // --- Holidays and days off ---
+
+    @Test
+    void aClosedDayHasNoSlotsAndSaysWhy() {
+        when(businessService.findBySlug("kuafor-ali")).thenReturn(business);
+        when(offeringRepository.findByIdAndBusinessId(7L, 1L)).thenReturn(Optional.of(haircut));
+        when(closureRepository.findCovering(1L, TOMORROW))
+                .thenReturn(List.of(new Closure(business, null, TOMORROW, TOMORROW, "Bayram")));
+
+        var availability = bookingService.availability("kuafor-ali", 7L, TOMORROW, null);
+
+        assertThat(availability.slots()).isEmpty();
+        assertThat(availability.closedReason()).isEqualTo("Bayram");
+    }
+
+    @Test
+    void anOpenDayHasNoClosedReason() {
+        when(businessService.findBySlug("kuafor-ali")).thenReturn(business);
+        when(offeringRepository.findByIdAndBusinessId(7L, 1L)).thenReturn(Optional.of(haircut));
+
+        var availability = bookingService.availability("kuafor-ali", 7L, TOMORROW, null);
+
+        assertThat(availability.slots()).isNotEmpty();
+        assertThat(availability.closedReason()).isNull();
+    }
+
+    @Test
+    void aStaffMemberOnLeaveIsSkipped() {
+        givenBookable();
+        Staff mehmet = staff(21L, "Mehmet");
+        Staff zeynep = staff(22L, "Zeynep");
+        when(staffRepository.findByBusinessIdAndActiveTrueOrderByIdAsc(1L)).thenReturn(List.of(mehmet, zeynep));
+        when(closureRepository.findCovering(1L, TOMORROW))
+                .thenReturn(List.of(new Closure(business, mehmet, TOMORROW, TOMORROW, null)));
+        when(bookingRepository.findConfirmedOverlapping(eq(1L), any(), any())).thenReturn(List.of());
+
+        bookingService.book(request("2026-10-23T10:30"), "ayse@example.com");
+
+        // Mehmet would get it on a tie, but he is on leave
+        assertThat(savedBooking().getStaff()).isSameAs(zeynep);
     }
 
     // --- Even spread and staff hours ---

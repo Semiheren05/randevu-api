@@ -2,6 +2,8 @@ package com.semih.randevuapi.business;
 
 import com.semih.randevuapi.business.dto.BusinessRequest;
 import com.semih.randevuapi.business.dto.BusinessResponse;
+import com.semih.randevuapi.business.dto.ClosureRequest;
+import com.semih.randevuapi.business.dto.ClosureResponse;
 import com.semih.randevuapi.business.dto.OfferingRequest;
 import com.semih.randevuapi.business.dto.OfferingResponse;
 import com.semih.randevuapi.business.dto.OpeningHoursRequest;
@@ -142,5 +144,27 @@ public class OwnerBusinessController {
     @Operation(summary = "Deactivate a staff member; they take no new bookings, existing ones stay")
     public void deactivateStaff(@PathVariable Long businessId, @PathVariable Long staffId, Authentication auth) {
         businessService.deactivateStaff(businessId, staffId, auth.getName());
+    }
+
+    @GetMapping("/{businessId}/closures")
+    @Operation(summary = "Current and upcoming holidays and days off")
+    public List<ClosureResponse> closures(@PathVariable Long businessId, Authentication auth) {
+        return businessService.listClosures(businessId, auth.getName());
+    }
+
+    @PostMapping("/{businessId}/closures")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Close the business, or one staff member with staffId, on one or more days (409 if booked)")
+    public ClosureResponse addClosure(@PathVariable Long businessId,
+                                      @Valid @RequestBody ClosureRequest request,
+                                      Authentication auth) {
+        return businessService.addClosure(businessId, request, auth.getName());
+    }
+
+    @DeleteMapping("/{businessId}/closures/{closureId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Remove a closure; the days can be booked again")
+    public void deleteClosure(@PathVariable Long businessId, @PathVariable Long closureId, Authentication auth) {
+        businessService.deleteClosure(businessId, closureId, auth.getName());
     }
 }

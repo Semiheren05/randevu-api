@@ -72,7 +72,7 @@ class BookingFlowIntegrationTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        jdbcTemplate.execute("TRUNCATE bookings, staff_hours, staff_offerings, staff, offerings, business_hours, "
+        jdbcTemplate.execute("TRUNCATE bookings, closures, staff_hours, staff_offerings, staff, offerings, business_hours, "
                 + "businesses, users RESTART IDENTITY CASCADE");
         day = LocalDate.now(ISTANBUL).plusDays(2);
 
@@ -443,6 +443,76 @@ class BookingFlowIntegrationTest {
                     {"day": "%s", "opensAt": "%s", "closesAt": "%s"}""".formatted(day, opensAt, closesAt));
         }
         return week.append("]").toString();
+    }
+
+    // --- Holidays and days off ---
+
+    @Test
+    void aHolidayClosesTheDayUntilItIsRemoved() throws Exception {
+        String closure = json(perform(post("/api/owner/businesses/{id}/closures", businessId), ownerToken, """
+                {"startsOn": "%s", "endsOn": "%s", "reason": "Bayram"}
+                """.formatted(day, day.plusDays(1)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.staffId").doesNotExist())
+                .andExpect(jsonPath("$.reason").value("Bayram")));
+        long closureId = ((Number) JsonPath.read(closure, "$.id")).longValue();
+
+        availability()
+                .andExpect(jsonPath("$.slots.length()").value(0))
+                .andExpect(jsonPath("$.closedReason").value("Bayram"));
+        book(customerToken, "10:00").andExpect(status().isConflict());
+        perform(get("/api/owner/businesses/{id}/closures", businessId), ownerToken, null)
+                .andExpect(jsonPath("$.length()").value(1));
+
+        perform(delete("/api/owner/businesses/{id}/closures/{closureId}", businessId, closureId), ownerToken, null)
+                .andExpect(status().isNoContent());
+        availability()
+                .andExpect(jsonPath("$.slots[0]").value("09:00"))
+                .andExpect(jsonPath("$.closedReason").doesNotExist());
+    }
+
+    @Test
+    void daysWithBookingsCannotBeClosed() throws Exception {
+        book(customerToken, "10:00").andExpect(status().isCreated());
+
+        perform(post("/api/owner/businesses/{id}/closures", businessId), ownerToken, """
+                {"startsOn": "%s", "endsOn": "%s"}
+                """.formatted(day.minusDays(1), day))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Bookings in this period"));
+    }
+
+    @Test
+    void aStaffMemberOnLeaveTakesNoBookings() throws Exception {
+        long mehmet = addStaff("Mehmet", "[]");
+        addStaff("Zeynep", "[]");
+
+        perform(post("/api/owner/businesses/{id}/closures", businessId), ownerToken, """
+                {"startsOn": "%s", "endsOn": "%s", "staffId": %d, "reason": "Yıllık izin"}
+                """.formatted(day, day, mehmet))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.staffName").value("Mehmet"));
+
+        // The business stays open; only Zeynep works that day
+        availability().andExpect(jsonPath("$.closedReason").doesNotExist());
+        availability(offeringId, mehmet).andExpect(jsonPath("$.slots.length()").value(0));
+        book(customerToken, "10:00").andExpect(jsonPath("$.staffName").value("Zeynep"));
+    }
+
+    @Test
+    void closuresAreValidated() throws Exception {
+        perform(post("/api/owner/businesses/{id}/closures", businessId), ownerToken, """
+                {"startsOn": "%s", "endsOn": "%s"}
+                """.formatted(day, day.minusDays(1)))
+                .andExpect(status().isBadRequest());
+        perform(post("/api/owner/businesses/{id}/closures", businessId), ownerToken, """
+                {"startsOn": "2020-01-01", "endsOn": "2020-01-02"}
+                """)
+                .andExpect(status().isBadRequest());
+        perform(post("/api/owner/businesses/{id}/closures", businessId), ownerToken, """
+                {"startsOn": "%s", "endsOn": "%s", "staffId": 999999}
+                """.formatted(day, day))
+                .andExpect(status().isNotFound());
     }
 
     private long addStaff(String name, String offeringIdsJson) throws Exception {

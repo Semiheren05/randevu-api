@@ -6,6 +6,8 @@ import com.semih.randevuapi.booking.dto.BookingResponse;
 import com.semih.randevuapi.booking.dto.StatsResponse;
 import com.semih.randevuapi.business.Business;
 import com.semih.randevuapi.business.BusinessService;
+import com.semih.randevuapi.business.Closure;
+import com.semih.randevuapi.business.ClosureRepository;
 import com.semih.randevuapi.business.Offering;
 import com.semih.randevuapi.business.OfferingRepository;
 import com.semih.randevuapi.business.OpeningHours;
@@ -39,8 +41,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 @Service
 public class BookingService {
@@ -52,6 +56,7 @@ public class BookingService {
     private final BookingRepository bookingRepository;
     private final OfferingRepository offeringRepository;
     private final StaffRepository staffRepository;
+    private final ClosureRepository closureRepository;
     private final UserRepository userRepository;
     private final BusinessService businessService;
     private final BookingProperties properties;
@@ -61,6 +66,7 @@ public class BookingService {
     public BookingService(BookingRepository bookingRepository,
                           OfferingRepository offeringRepository,
                           StaffRepository staffRepository,
+                          ClosureRepository closureRepository,
                           UserRepository userRepository,
                           BusinessService businessService,
                           BookingProperties properties,
@@ -69,6 +75,7 @@ public class BookingService {
         this.bookingRepository = bookingRepository;
         this.offeringRepository = offeringRepository;
         this.staffRepository = staffRepository;
+        this.closureRepository = closureRepository;
         this.userRepository = userRepository;
         this.businessService = businessService;
         this.properties = properties;
@@ -85,8 +92,13 @@ public class BookingService {
         List<String> slots = freeSlots(business, offering, date, staffId).stream()
                 .map(slot -> slot.time().format(SLOT_FORMAT))
                 .toList();
+        String closedReason = closures(business, date).stream()
+                .filter(Closure::isWholeBusiness)
+                .findFirst()
+                .map(closure -> closure.getReason() != null ? closure.getReason() : "Closed")
+                .orElse(null);
         return new AvailabilityResponse(date, offering.getId(), staffId, offering.getDurationMinutes(),
-                business.getZoneId().getId(), slots);
+                business.getZoneId().getId(), slots, closedReason);
     }
 
     // --- Customer ---
@@ -244,6 +256,14 @@ public class BookingService {
         if (hours.isEmpty()) {
             return List.of();
         }
+        List<Closure> closures = closures(business, date);
+        if (closures.stream().anyMatch(Closure::isWholeBusiness)) {
+            return List.of();
+        }
+        // Staff members on leave that day
+        Set<Long> staffOff = closures.stream()
+                .map(closure -> closure.getStaff().getId())
+                .collect(Collectors.toSet());
         List<Booking> dayBookings = bookingRepository.findConfirmedOverlapping(
                 business.getId(), startOf(date, zone), startOf(date.plusDays(1), zone));
 
@@ -262,6 +282,9 @@ public class BookingService {
         // TreeMap keeps the times sorted
         Map<LocalTime, Staff> assigned = new TreeMap<>();
         for (Staff member : leastBusyFirst) {
+            if (staffOff.contains(member.getId())) {
+                continue;
+            }
             Optional<OpeningHours> shift = member.availableHours(hours.get());
             if (shift.isEmpty()) {
                 continue;
@@ -274,6 +297,11 @@ public class BookingService {
         return assigned.entrySet().stream()
                 .map(entry -> new FreeSlot(entry.getKey(), entry.getValue()))
                 .toList();
+    }
+
+    /** Holidays and days off that include the day. */
+    private List<Closure> closures(Business business, LocalDate date) {
+        return closureRepository.findCovering(business.getId(), date);
     }
 
     /** Minutes of confirmed bookings each staff member has on the day. */

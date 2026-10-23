@@ -12,5 +12,7 @@ public record AvailabilityResponse(
         int durationMinutes,
         String timeZone,
         // "HH:mm", e.g. ["09:00", "09:15"]: ready to show as buttons
-        List<String> slots) {
+        List<String> slots,
+        // Set when the whole business is closed that day (a holiday); slots is then empty
+        String closedReason) {
 }

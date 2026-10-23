@@ -1,6 +1,7 @@
 package com.semih.randevuapi.common;
 
 import com.semih.randevuapi.common.exception.CancellationNotAllowedException;
+import com.semih.randevuapi.common.exception.ConflictException;
 import com.semih.randevuapi.common.exception.EmailAlreadyUsedException;
 import com.semih.randevuapi.common.exception.InvalidCredentialsException;
 import com.semih.randevuapi.common.exception.InvalidRequestException;
@@ -71,6 +72,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(CancellationNotAllowedException.class)
     ProblemDetail handleCancellationNotAllowed(CancellationNotAllowedException ex) {
         return problem(HttpStatus.CONFLICT, "Cancellation not allowed", ex.getMessage());
+    }
+
+    @ExceptionHandler(ConflictException.class)
+    ProblemDetail handleConflict(ConflictException ex) {
+        return problem(HttpStatus.CONFLICT, ex.getTitle(), ex.getMessage());
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)
