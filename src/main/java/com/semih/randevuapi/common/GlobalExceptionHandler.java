@@ -7,6 +7,9 @@ import com.semih.randevuapi.common.exception.InvalidCredentialsException;
 import com.semih.randevuapi.common.exception.InvalidRequestException;
 import com.semih.randevuapi.common.exception.ResourceNotFoundException;
 import com.semih.randevuapi.common.exception.SlotNotAvailableException;
+import com.semih.randevuapi.payment.InvalidWebhookException;
+import com.semih.randevuapi.payment.PaymentProviderException;
+import com.semih.randevuapi.payment.PaymentsDisabledException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -77,6 +80,24 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(ConflictException.class)
     ProblemDetail handleConflict(ConflictException ex) {
         return problem(HttpStatus.CONFLICT, ex.getTitle(), ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidWebhookException.class)
+    ProblemDetail handleInvalidWebhook(InvalidWebhookException ex) {
+        log.warn("Rejected payment webhook: {}", ex.getMessage());
+        return problem(HttpStatus.BAD_REQUEST, "Invalid webhook", ex.getMessage());
+    }
+
+    /** The provider's own error message may contain details meant for us, so it is only logged. */
+    @ExceptionHandler(PaymentProviderException.class)
+    ProblemDetail handlePaymentProvider(PaymentProviderException ex) {
+        log.error("Payment provider error", ex);
+        return problem(HttpStatus.BAD_GATEWAY, "Payment provider error", "The payment provider could not be reached");
+    }
+
+    @ExceptionHandler(PaymentsDisabledException.class)
+    ProblemDetail handlePaymentsDisabled(PaymentsDisabledException ex) {
+        return problem(HttpStatus.SERVICE_UNAVAILABLE, "Online payment unavailable", ex.getMessage());
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)

@@ -53,6 +53,9 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     Page<Booking> findByCustomerEmail(String customerEmail, Pageable pageable);
 
+    /** The booking a payment webhook is about. */
+    Optional<Booking> findByPaymentCheckoutId(String checkoutId);
+
     Optional<Booking> findByIdAndCustomerEmail(Long id, String customerEmail);
 
     Optional<Booking> findByIdAndBusinessId(Long id, Long businessId);

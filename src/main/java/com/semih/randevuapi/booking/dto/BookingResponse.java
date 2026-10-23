@@ -2,6 +2,7 @@ package com.semih.randevuapi.booking.dto;
 
 import com.semih.randevuapi.booking.Booking;
 import com.semih.randevuapi.booking.BookingStatus;
+import com.semih.randevuapi.booking.PaymentStatus;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -20,6 +21,7 @@ public record BookingResponse(
         String timeZone,
         BigDecimal price,
         BookingStatus status,
+        PaymentStatus paymentStatus,
         String customerName,
         String note) {
 
@@ -37,6 +39,7 @@ public record BookingResponse(
                 zone.getId(),
                 booking.getPrice(),
                 booking.getStatus(),
+                booking.getPayment().getStatus(),
                 booking.getCustomer().getDisplayName(),
                 booking.getNote());
     }

@@ -38,6 +38,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll()
                         // Anyone can browse businesses, their services and free slots
                         .requestMatchers(HttpMethod.GET, "/api/businesses", "/api/businesses/**").permitAll()
+                        // Called by the payment provider; protected by its signature, not by a token
+                        .requestMatchers(HttpMethod.POST, "/api/payments/webhook").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/actuator/health/**").permitAll()
                         .requestMatchers("/error").permitAll()

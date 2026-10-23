@@ -70,6 +70,8 @@ class BookingServiceTest {
     private BusinessService businessService;
     @Mock
     private ApplicationEventPublisher events;
+    @Mock
+    private BookingPaymentService paymentService;
 
     private BookingService bookingService;
     private User customer;
@@ -80,7 +82,7 @@ class BookingServiceTest {
     void setUp() {
         BookingProperties properties = new BookingProperties(Duration.ofMinutes(15), Duration.ofHours(2), 60);
         bookingService = new BookingService(bookingRepository, offeringRepository, staffRepository, closureRepository,
-                userRepository, businessService, properties, events, Clock.fixed(NOW, ISTANBUL));
+                userRepository, businessService, paymentService, properties, events, Clock.fixed(NOW, ISTANBUL));
 
         User owner = new User("owner@example.com", "hash", "Ali", Role.OWNER);
         customer = new User("ayse@example.com", "hash", "Ayşe", Role.CUSTOMER);
@@ -147,6 +149,16 @@ class BookingServiceTest {
 
         assertThat(booking.getStatus()).isEqualTo(BookingStatus.CANCELLED);
         assertThat(booking.getCancelledAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    void cancellingAsksForARefundFirst() {
+        Booking booking = booking("2026-10-23T10:30");
+        when(bookingRepository.findByIdAndCustomerEmail(5L, "ayse@example.com")).thenReturn(Optional.of(booking));
+
+        bookingService.cancelByCustomer(5L, "ayse@example.com");
+
+        verify(paymentService).refundIfPaid(booking);
     }
 
     @Test

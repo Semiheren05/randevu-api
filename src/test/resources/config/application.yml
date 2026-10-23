@@ -4,3 +4,8 @@ app:
   reminders:
     # Tests call BookingReminderService directly instead of waiting for the schedule
     enabled: false
+  payments:
+    # A stand-in provider: no network, no money; the tests send its webhooks themselves
+    provider: fake
+    fake:
+      webhook-secret: test-webhook-secret

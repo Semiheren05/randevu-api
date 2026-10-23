@@ -59,6 +59,7 @@ public class BookingService {
     private final ClosureRepository closureRepository;
     private final UserRepository userRepository;
     private final BusinessService businessService;
+    private final BookingPaymentService paymentService;
     private final BookingProperties properties;
     private final ApplicationEventPublisher events;
     private final Clock clock;
@@ -69,6 +70,7 @@ public class BookingService {
                           ClosureRepository closureRepository,
                           UserRepository userRepository,
                           BusinessService businessService,
+                          BookingPaymentService paymentService,
                           BookingProperties properties,
                           ApplicationEventPublisher events,
                           Clock clock) {
@@ -78,6 +80,7 @@ public class BookingService {
         this.closureRepository = closureRepository;
         this.userRepository = userRepository;
         this.businessService = businessService;
+        this.paymentService = paymentService;
         this.properties = properties;
         this.events = events;
         this.clock = clock;
@@ -353,6 +356,7 @@ public class BookingService {
     }
 
     private BookingResponse cancel(Booking booking, Instant now) {
+        paymentService.refundIfPaid(booking);
         booking.cancel(now);
         events.publishEvent(BookingNotification.of(BookingNotification.Type.CANCELLED, booking));
         return BookingResponse.from(booking);

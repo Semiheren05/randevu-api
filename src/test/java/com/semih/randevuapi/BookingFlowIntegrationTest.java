@@ -2,6 +2,8 @@ package com.semih.randevuapi;
 
 import com.jayway.jsonpath.JsonPath;
 import com.semih.randevuapi.booking.BookingReminderService;
+import com.semih.randevuapi.payment.FakePaymentGateway;
+import com.semih.randevuapi.payment.PaymentGateway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -65,6 +68,8 @@ class BookingFlowIntegrationTest {
     private JdbcTemplate jdbcTemplate;
     @Autowired
     private BookingReminderService reminderService;
+    @Autowired
+    private PaymentGateway paymentGateway;
 
     private String ownerToken;
     private String customerToken;
@@ -446,6 +451,64 @@ class BookingFlowIntegrationTest {
                     {"day": "%s", "opensAt": "%s", "closesAt": "%s"}""".formatted(day, opensAt, closesAt));
         }
         return week.append("]").toString();
+    }
+
+    // --- Online payment (fake provider, see src/test/resources/config/application.yml) ---
+
+    @Test
+    void payOnlineThenCancelAndGetARefund() throws Exception {
+        long bookingId = ((Number) JsonPath.read(json(book(customerToken, "10:00")
+                .andExpect(jsonPath("$.paymentStatus").value("UNPAID"))), "$.id")).longValue();
+
+        perform(post("/api/bookings/{id}/payment", bookingId), customerToken, null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andExpect(jsonPath("$.checkoutUrl").value(startsWith("https://payments.example.test/checkout/")));
+        String checkoutId = jdbcTemplate.queryForObject(
+                "SELECT payment_checkout_id FROM bookings WHERE id = ?", String.class, bookingId);
+        String paid = """
+                {"checkoutId": "%s", "paymentId": "pay_123"}
+                """.formatted(checkoutId);
+
+        // Anyone can call the webhook URL; without the right signature nothing happens
+        webhook(paid, "wrong-secret")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Invalid webhook"));
+        webhook(paid, null).andExpect(status().isBadRequest());
+
+        webhook(paid, "test-webhook-secret").andExpect(status().isOk());
+        // Providers resend webhooks; the second one changes nothing
+        webhook(paid, "test-webhook-secret").andExpect(status().isOk());
+        perform(get("/api/bookings"), customerToken, null)
+                .andExpect(jsonPath("$.content[0].paymentStatus").value("PAID"));
+        perform(post("/api/bookings/{id}/payment", bookingId), customerToken, null)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Already paid"));
+
+        perform(post("/api/bookings/{id}/cancel", bookingId), customerToken, null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.paymentStatus").value("REFUNDED"));
+        assertThat(((FakePaymentGateway) paymentGateway).refunds()).contains("pay_123");
+    }
+
+    @Test
+    void customersCanOnlyPayTheirOwnBookings() throws Exception {
+        String otherCustomer = register("deniz@example.com", "Deniz", "CUSTOMER");
+        long bookingId = ((Number) JsonPath.read(json(book(customerToken, "10:00")), "$.id")).longValue();
+
+        perform(post("/api/bookings/{id}/payment", bookingId), otherCustomer, null)
+                .andExpect(status().isNotFound());
+        perform(post("/api/bookings/{id}/payment", bookingId), ownerToken, null)
+                .andExpect(status().isForbidden());
+    }
+
+    private ResultActions webhook(String body, String signature) throws Exception {
+        var request = post("/api/payments/webhook").contentType(MediaType.APPLICATION_JSON).content(body);
+        if (signature != null) {
+            request.header("Fake-Signature", signature);
+        }
+        return mockMvc.perform(request);
     }
 
     // --- Reminders ---

@@ -5,6 +5,7 @@ import com.semih.randevuapi.business.Offering;
 import com.semih.randevuapi.business.Staff;
 import com.semih.randevuapi.user.User;
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -73,6 +74,9 @@ public class Booking {
 
     @Column(name = "reminder_sent_at", columnDefinition = "timestamptz")
     private Instant reminderSentAt;
+
+    @Embedded
+    private PaymentInfo payment = new PaymentInfo();
 
     protected Booking() {
         // for JPA
@@ -164,5 +168,9 @@ public class Booking {
 
     public Instant getReminderSentAt() {
         return reminderSentAt;
+    }
+
+    public PaymentInfo getPayment() {
+        return payment;
     }
 }

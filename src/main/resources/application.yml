@@ -45,6 +45,19 @@ app:
     enabled: ${BOOKING_REMINDERS_ENABLED:true}
     lead-time: ${BOOKING_REMINDER_LEAD_TIME:24h}
     check-interval: PT15M
+  payments:
+    # none (default: customers pay at the business), stripe, or fake (local development only)
+    provider: ${PAYMENT_PROVIDER:none}
+    currency: ${PAYMENT_CURRENCY:try}
+    # The front-end pages the provider sends the customer back to
+    success-url: ${PAYMENT_SUCCESS_URL:http://localhost:5500/odeme-basarili}
+    cancel-url: ${PAYMENT_CANCEL_URL:http://localhost:5500/odeme-iptal}
+    stripe:
+      secret-key: ${STRIPE_SECRET_KEY:}
+      webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+      api-base: https://api.stripe.com
+    fake:
+      webhook-secret: ${FAKE_PAYMENT_WEBHOOK_SECRET:}
   notifications:
     # Sender address for booking emails; empty uses the mail server's default
     mail-from: ${NOTIFICATION_MAIL_FROM:}

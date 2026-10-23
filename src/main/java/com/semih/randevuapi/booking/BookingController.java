@@ -2,6 +2,7 @@ package com.semih.randevuapi.booking;
 
 import com.semih.randevuapi.booking.dto.BookingRequest;
 import com.semih.randevuapi.booking.dto.BookingResponse;
+import com.semih.randevuapi.booking.dto.PaymentResponse;
 import com.semih.randevuapi.common.exception.SlotNotAvailableException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -29,9 +30,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class BookingController {
 
     private final BookingService bookingService;
+    private final BookingPaymentService paymentService;
 
-    public BookingController(BookingService bookingService) {
+    public BookingController(BookingService bookingService, BookingPaymentService paymentService) {
         this.bookingService = bookingService;
+        this.paymentService = paymentService;
     }
 
     @PostMapping
@@ -63,5 +66,11 @@ public class BookingController {
     @Operation(summary = "Cancel my booking (allowed until the cancellation notice, 2 hours by default)")
     public BookingResponse cancel(@PathVariable Long bookingId, Authentication auth) {
         return bookingService.cancelByCustomer(bookingId, auth.getName());
+    }
+
+    @PostMapping("/{bookingId}/payment")
+    @Operation(summary = "Pay online: returns the payment page to send the customer to")
+    public PaymentResponse pay(@PathVariable Long bookingId, Authentication auth) {
+        return paymentService.startCheckout(bookingId, auth.getName());
     }
 }
