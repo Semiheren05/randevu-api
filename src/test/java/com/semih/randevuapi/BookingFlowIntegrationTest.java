@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -71,8 +72,8 @@ class BookingFlowIntegrationTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        jdbcTemplate.execute("TRUNCATE bookings, staff_offerings, staff, offerings, business_hours, businesses, users "
-                + "RESTART IDENTITY CASCADE");
+        jdbcTemplate.execute("TRUNCATE bookings, staff_hours, staff_offerings, staff, offerings, business_hours, "
+                + "businesses, users RESTART IDENTITY CASCADE");
         day = LocalDate.now(ISTANBUL).plusDays(2);
 
         ownerToken = register("ali@example.com", "Ali", "OWNER");
@@ -339,6 +340,109 @@ class BookingFlowIntegrationTest {
                 .isInstanceOf(DataIntegrityViolationException.class);
         // Another person at the same time: fine
         jdbcTemplate.update(insert, businessId, offeringId, customerId, zeynep, "2030-01-01 10:00+03", "2030-01-01 10:30+03");
+    }
+
+    @Test
+    void staffOwnHoursLimitTheirSlotsAndAnEmptyWeekResetsThem() throws Exception {
+        long mehmet = addStaff("Mehmet", "[]");
+
+        perform(put("/api/owner/businesses/{id}/staff/{staffId}/hours", businessId, mehmet), ownerToken,
+                weekOf("13:00", "16:00"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.followsBusinessHours").value(false))
+                .andExpect(jsonPath("$.workingHours.length()").value(7))
+                .andExpect(jsonPath("$.workingHours[0].opensAt").value("13:00"));
+
+        // The business is open 09:00-18:00, but Mehmet (the only staff member) starts at 13:00
+        availability()
+                .andExpect(jsonPath("$.slots[0]").value("13:00"))
+                .andExpect(jsonPath("$.slots[-1]").value("15:30"));
+        book(customerToken, "10:00").andExpect(status().isConflict());
+
+        perform(put("/api/owner/businesses/{id}/staff/{staffId}/hours", businessId, mehmet), ownerToken, "[]")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.followsBusinessHours").value(true));
+        availability().andExpect(jsonPath("$.slots[0]").value("09:00"));
+    }
+
+    @Test
+    void staffHoursAreValidatedLikeOpeningHours() throws Exception {
+        long mehmet = addStaff("Mehmet", "[]");
+
+        perform(put("/api/owner/businesses/{id}/staff/{staffId}/hours", businessId, mehmet), ownerToken, """
+                [{"day": "MONDAY", "opensAt": "13:00", "closesAt": "16:00"},
+                 {"day": "MONDAY", "opensAt": "17:00", "closesAt": "18:00"}]
+                """)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Invalid request"));
+    }
+
+    @Test
+    void bookingsAreSpreadEvenlyAcrossStaff() throws Exception {
+        addStaff("Mehmet", "[]");
+        addStaff("Zeynep", "[]");
+        String deniz = register("deniz@example.com", "Deniz", "CUSTOMER");
+        String can = register("can@example.com", "Can", "CUSTOMER");
+
+        // Everyone is free at each of these times, so the least busy person gets the booking
+        book(customerToken, "10:00").andExpect(jsonPath("$.staffName").value("Mehmet"));
+        book(deniz, "11:00").andExpect(jsonPath("$.staffName").value("Zeynep"));
+        book(can, "12:00").andExpect(jsonPath("$.staffName").value("Mehmet"));
+
+        perform(get("/api/owner/businesses/{id}/stats", businessId)
+                .param("from", day.toString()).param("to", day.toString()), ownerToken, null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.byStaff.length()").value(2))
+                .andExpect(jsonPath("$.byStaff[0].name").value("Mehmet"))
+                .andExpect(jsonPath("$.byStaff[0].bookings").value(2))
+                .andExpect(jsonPath("$.byStaff[1].name").value("Zeynep"))
+                .andExpect(jsonPath("$.byStaff[1].bookings").value(1));
+    }
+
+    @Test
+    void withTwoStaffTwoCustomersRacingForTheSameTimeBothGetABooking() throws Exception {
+        addStaff("Mehmet", "[]");
+        addStaff("Zeynep", "[]");
+        String otherCustomer = register("deniz@example.com", "Deniz", "CUSTOMER");
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            List<Future<Integer>> results = new ArrayList<>();
+            for (String token : List.of(customerToken, otherCustomer)) {
+                Callable<Integer> attempt = () -> {
+                    start.await();
+                    return book(token, "15:00").andReturn().getResponse().getStatus();
+                };
+                results.add(pool.submit(attempt));
+            }
+            start.countDown();
+
+            List<Integer> statuses = new ArrayList<>();
+            for (Future<Integer> result : results) {
+                statuses.add(result.get());
+            }
+            // Both may be given Mehmet at first; the one the database turns away retries and gets Zeynep
+            assertThat(statuses).containsExactly(201, 201);
+        } finally {
+            pool.shutdownNow();
+        }
+        List<String> staff = jdbcTemplate.queryForList("""
+                SELECT s.name FROM bookings b JOIN staff s ON s.id = b.staff_id
+                WHERE b.status = 'CONFIRMED' ORDER BY s.name
+                """, String.class);
+        assertThat(staff).containsExactly("Mehmet", "Zeynep");
+    }
+
+    private static String weekOf(String opensAt, String closesAt) {
+        StringBuilder week = new StringBuilder("[");
+        for (DayOfWeek day : DayOfWeek.values()) {
+            if (week.length() > 1) {
+                week.append(", ");
+            }
+            week.append("""
+                    {"day": "%s", "opensAt": "%s", "closesAt": "%s"}""".formatted(day, opensAt, closesAt));
+        }
+        return week.append("]").toString();
     }
 
     private long addStaff(String name, String offeringIdsJson) throws Exception {

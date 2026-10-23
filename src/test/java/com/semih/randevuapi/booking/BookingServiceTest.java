@@ -1,6 +1,7 @@
 package com.semih.randevuapi.booking;
 
 import com.semih.randevuapi.booking.dto.BookingRequest;
+import com.semih.randevuapi.booking.dto.StatsResponse;
 import com.semih.randevuapi.business.Business;
 import com.semih.randevuapi.business.BusinessService;
 import com.semih.randevuapi.business.Offering;
@@ -251,6 +252,132 @@ class BookingServiceTest {
                 .isInstanceOf(SlotNotAvailableException.class);
     }
 
+    // --- Even spread and staff hours ---
+
+    @Test
+    void theStaffMemberWithTheLeastBookedTimeThatDayGetsTheBooking() {
+        givenBookable();
+        Staff mehmet = staff(21L, "Mehmet");
+        Staff zeynep = staff(22L, "Zeynep");
+        when(staffRepository.findByBusinessIdAndActiveTrueOrderByIdAsc(1L)).thenReturn(List.of(mehmet, zeynep));
+        when(bookingRepository.findConfirmedOverlapping(eq(1L), any(), any()))
+                .thenReturn(List.of(booking("2026-10-23T09:00", mehmet)));
+
+        bookingService.book(request("2026-10-23T11:00"), "ayse@example.com");
+
+        // Both are free at 11:00; Mehmet already has 30 minutes that day, Zeynep none
+        assertThat(savedBooking().getStaff()).isSameAs(zeynep);
+    }
+
+    @Test
+    void bookedMinutesCountNotTheNumberOfBookings() {
+        givenBookable();
+        Staff mehmet = staff(21L, "Mehmet");
+        Staff zeynep = staff(22L, "Zeynep");
+        when(staffRepository.findByBusinessIdAndActiveTrueOrderByIdAsc(1L)).thenReturn(List.of(mehmet, zeynep));
+        when(bookingRepository.findConfirmedOverlapping(eq(1L), any(), any())).thenReturn(List.of(
+                booking("2026-10-23T09:00", mehmet, 90),
+                booking("2026-10-23T09:00", zeynep, 30),
+                booking("2026-10-23T09:30", zeynep, 30)));
+
+        bookingService.book(request("2026-10-23T11:00"), "ayse@example.com");
+
+        // Zeynep has two bookings but 60 minutes; Mehmet has one booking of 90 minutes
+        assertThat(savedBooking().getStaff()).isSameAs(zeynep);
+    }
+
+    @Test
+    void onATieTheStaffMemberAddedFirstGetsTheBooking() {
+        givenBookable();
+        Staff mehmet = staff(21L, "Mehmet");
+        Staff zeynep = staff(22L, "Zeynep");
+        when(staffRepository.findByBusinessIdAndActiveTrueOrderByIdAsc(1L)).thenReturn(List.of(mehmet, zeynep));
+        when(bookingRepository.findConfirmedOverlapping(eq(1L), any(), any())).thenReturn(List.of());
+
+        bookingService.book(request("2026-10-23T11:00"), "ayse@example.com");
+
+        assertThat(savedBooking().getStaff()).isSameAs(mehmet);
+    }
+
+    @Test
+    void staffOwnHoursLimitTheirFreeSlots() {
+        when(businessService.findBySlug("kuafor-ali")).thenReturn(business);
+        when(offeringRepository.findByIdAndBusinessId(7L, 1L)).thenReturn(Optional.of(haircut));
+        Staff mehmet = staff(21L, "Mehmet");
+        // The business is open 09:00-12:00 on Fridays; Mehmet works only 10:00-11:00
+        mehmet.replaceWorkingHours(List.of(hours(DayOfWeek.FRIDAY, LocalTime.of(10, 0), LocalTime.of(11, 0))));
+        when(staffRepository.findByBusinessIdAndActiveTrueOrderByIdAsc(1L)).thenReturn(List.of(mehmet));
+
+        var availability = bookingService.availability("kuafor-ali", 7L, TOMORROW, null);
+
+        assertThat(availability.slots()).containsExactly("10:00", "10:15", "10:30");
+    }
+
+    @Test
+    void ownHoursOutsideTheOpeningHoursAreCut() {
+        when(businessService.findBySlug("kuafor-ali")).thenReturn(business);
+        when(offeringRepository.findByIdAndBusinessId(7L, 1L)).thenReturn(Optional.of(haircut));
+        Staff mehmet = staff(21L, "Mehmet");
+        mehmet.replaceWorkingHours(List.of(hours(DayOfWeek.FRIDAY, LocalTime.of(7, 0), LocalTime.of(10, 0))));
+        when(staffRepository.findByBusinessIdAndActiveTrueOrderByIdAsc(1L)).thenReturn(List.of(mehmet));
+
+        var availability = bookingService.availability("kuafor-ali", 7L, TOMORROW, null);
+
+        // Nothing before 09:00, when the business opens
+        assertThat(availability.slots()).containsExactly("09:00", "09:15", "09:30");
+    }
+
+    @Test
+    void aStaffMemberWhoIsOffThatDayIsSkipped() {
+        givenBookable();
+        Staff mehmet = staff(21L, "Mehmet");
+        mehmet.replaceWorkingHours(List.of(hours(DayOfWeek.MONDAY, LocalTime.of(9, 0), LocalTime.of(12, 0))));
+        Staff zeynep = staff(22L, "Zeynep");
+        when(staffRepository.findByBusinessIdAndActiveTrueOrderByIdAsc(1L)).thenReturn(List.of(mehmet, zeynep));
+        when(bookingRepository.findConfirmedOverlapping(eq(1L), any(), any())).thenReturn(List.of());
+
+        bookingService.book(request("2026-10-23T10:30"), "ayse@example.com");
+
+        // Friday: Mehmet only works on Mondays
+        assertThat(savedBooking().getStaff()).isSameAs(zeynep);
+    }
+
+    @Test
+    void statsListEachStaffMemberIncludingThoseWithNoBookings() {
+        when(businessService.requireOwned(1L, "owner@example.com")).thenReturn(business);
+        Staff mehmet = staff(21L, "Mehmet");
+        Staff zeynep = staff(22L, "Zeynep");
+        Staff formerStaff = staff(23L, "Ali");
+        formerStaff.deactivate();
+        when(staffRepository.findByBusinessIdOrderByIdAsc(1L)).thenReturn(List.of(mehmet, zeynep, formerStaff));
+        when(bookingRepository.totalsByStaff(eq(1L), any(), any())).thenReturn(List.of(staffTotal(21L, 2)));
+
+        var stats = bookingService.stats(1L, TOMORROW, TOMORROW, "owner@example.com");
+
+        // Zeynep is active, so she shows with 0; Ali left and had no bookings, so he is not listed
+        assertThat(stats.byStaff()).containsExactly(
+                new StatsResponse.StaffCount("Mehmet", 2),
+                new StatsResponse.StaffCount("Zeynep", 0));
+    }
+
+    private static OpeningHours hours(DayOfWeek day, LocalTime opens, LocalTime closes) {
+        return new OpeningHours(day, opens, closes);
+    }
+
+    private static BookingRepository.StaffTotal staffTotal(Long staffId, long total) {
+        return new BookingRepository.StaffTotal() {
+            @Override
+            public Long getStaffId() {
+                return staffId;
+            }
+
+            @Override
+            public Long getTotal() {
+                return total;
+            }
+        };
+    }
+
     private Staff staff(Long id, String name, Offering... offerings) {
         Staff staff = new Staff(business, name, List.of(offerings));
         ReflectionTestUtils.setField(staff, "id", id);
@@ -274,9 +401,13 @@ class BookingServiceTest {
     }
 
     private Booking booking(String localStart, Staff staff) {
+        return booking(localStart, staff, 30);
+    }
+
+    private Booking booking(String localStart, Staff staff, int minutes) {
         Instant start = LocalDateTime.parse(localStart).atZone(ISTANBUL).toInstant();
         return new Booking(business, haircut, customer, staff,
-                new TimeRange(start, start.plus(Duration.ofMinutes(30))), null);
+                new TimeRange(start, start.plus(Duration.ofMinutes(minutes))), null);
     }
 
     private static BookingRequest request(String localStart) {

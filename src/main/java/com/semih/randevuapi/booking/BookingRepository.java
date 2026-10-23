@@ -66,12 +66,31 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
                                      @Param("to") Instant to,
                                      Limit limit);
 
+    /** Confirmed bookings per staff member in a period; staff without bookings are not listed. */
+    @Query("""
+            select s.id as staffId, count(b) as total
+            from Booking b join b.staff s
+            where b.business.id = :businessId
+              and b.status = com.semih.randevuapi.booking.BookingStatus.CONFIRMED
+              and b.startsAt >= :from and b.startsAt < :to
+            group by s.id
+            """)
+    List<StaffTotal> totalsByStaff(@Param("businessId") Long businessId,
+                                   @Param("from") Instant from,
+                                   @Param("to") Instant to);
+
     interface StatusTotals {
         BookingStatus getStatus();
 
         Long getTotal();
 
         BigDecimal getRevenue();
+    }
+
+    interface StaffTotal {
+        Long getStaffId();
+
+        Long getTotal();
     }
 
     interface OfferingTotal {

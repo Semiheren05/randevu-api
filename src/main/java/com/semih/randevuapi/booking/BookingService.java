@@ -27,12 +27,15 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -93,8 +96,9 @@ public class BookingService {
      * against the free slots first, and if two requests still race for the same time,
      * the database's exclusion constraints let only one of them in.
      *
-     * <p>Without a chosen staff member, the first free person who does the service is
-     * assigned (staff are tried in the order they were added).
+     * <p>Without a chosen staff member, the work is spread evenly: of the people who are
+     * free then and do the service, the one with the least booked time that day gets it
+     * (on a tie, the one added first).
      */
     @Transactional
     public BookingResponse book(BookingRequest request, String customerEmail) {
@@ -194,7 +198,22 @@ public class BookingService {
                 .topOfferings(businessId, start, end, Limit.of(TOP_OFFERINGS)).stream()
                 .map(t -> new StatsResponse.OfferingCount(t.getName(), t.getTotal()))
                 .toList();
-        return new StatsResponse(from, to, confirmed, cancelled, revenue, top);
+        return new StatsResponse(from, to, confirmed, cancelled, revenue, top, staffCounts(businessId, start, end));
+    }
+
+    /**
+     * Confirmed bookings per staff member, so the owner can see how evenly work is spread.
+     * Active staff with no bookings are listed with 0; inactive ones only if they had bookings.
+     */
+    private List<StatsResponse.StaffCount> staffCounts(Long businessId, Instant start, Instant end) {
+        Map<Long, Long> counts = new HashMap<>();
+        for (BookingRepository.StaffTotal total : bookingRepository.totalsByStaff(businessId, start, end)) {
+            counts.put(total.getStaffId(), total.getTotal());
+        }
+        return staffRepository.findByBusinessIdOrderByIdAsc(businessId).stream()
+                .filter(member -> member.isActive() || counts.containsKey(member.getId()))
+                .map(member -> new StatsResponse.StaffCount(member.getName(), counts.getOrDefault(member.getId(), 0L)))
+                .toList();
     }
 
     // --- Helpers ---
@@ -205,8 +224,8 @@ public class BookingService {
 
     /**
      * Free start times on a day, sorted. A business without staff has one calendar. A
-     * business with staff has one calendar per person: a time is free when at least one
-     * person who does the service (or the one asked for) is free then.
+     * business with staff has one calendar per person, inside that person's own hours: a time
+     * is free when at least one person who does the service (or the one asked for) is free then.
      */
     private List<FreeSlot> freeSlots(Business business, Offering offering, LocalDate date, Long staffId) {
         List<Staff> activeStaff = staffRepository.findByBusinessIdAndActiveTrueOrderByIdAsc(business.getId());
@@ -233,17 +252,40 @@ public class BookingService {
                     .map(time -> new FreeSlot(time, null))
                     .toList();
         }
-        // TreeMap keeps times sorted; putIfAbsent gives each time to the first free person
-        Map<LocalTime, Staff> firstFree = new TreeMap<>();
-        for (Staff member : candidates) {
+        // Least busy first, so putIfAbsent below gives each time to the least busy free person
+        Map<Long, Long> bookedMinutes = bookedMinutesByStaff(dayBookings);
+        List<Staff> leastBusyFirst = candidates.stream()
+                .sorted(Comparator.comparingLong((Staff member) -> bookedMinutes.getOrDefault(member.getId(), 0L))
+                        .thenComparing(Staff::getId))
+                .toList();
+
+        // TreeMap keeps the times sorted
+        Map<LocalTime, Staff> assigned = new TreeMap<>();
+        for (Staff member : leastBusyFirst) {
+            Optional<OpeningHours> shift = member.availableHours(hours.get());
+            if (shift.isEmpty()) {
+                continue;
+            }
             List<Booking> theirs = dayBookings.stream().filter(booking -> booking.occupies(member)).toList();
-            for (LocalTime time : slotsFor(date, hours.get(), zone, offering, theirs)) {
-                firstFree.putIfAbsent(time, member);
+            for (LocalTime time : slotsFor(date, shift.get(), zone, offering, theirs)) {
+                assigned.putIfAbsent(time, member);
             }
         }
-        return firstFree.entrySet().stream()
+        return assigned.entrySet().stream()
                 .map(entry -> new FreeSlot(entry.getKey(), entry.getValue()))
                 .toList();
+    }
+
+    /** Minutes of confirmed bookings each staff member has on the day. */
+    private static Map<Long, Long> bookedMinutesByStaff(List<Booking> dayBookings) {
+        Map<Long, Long> minutes = new HashMap<>();
+        for (Booking booking : dayBookings) {
+            if (booking.getStaff() != null) {
+                long length = Duration.between(booking.getStartsAt(), booking.getEndsAt()).toMinutes();
+                minutes.merge(booking.getStaff().getId(), length, Long::sum);
+            }
+        }
+        return minutes;
     }
 
     /** Active staff who do the service, narrowed to one person when asked for. */

@@ -6,6 +6,7 @@ import java.util.List;
 
 /**
  * @param revenue total price of confirmed bookings in the period (past and upcoming)
+ * @param byStaff confirmed bookings per staff member; empty for a business without staff
  */
 public record StatsResponse(
         LocalDate from,
@@ -13,8 +14,12 @@ public record StatsResponse(
         long confirmedBookings,
         long cancelledBookings,
         BigDecimal revenue,
-        List<OfferingCount> topOfferings) {
+        List<OfferingCount> topOfferings,
+        List<StaffCount> byStaff) {
 
     public record OfferingCount(String name, long bookings) {
+    }
+
+    public record StaffCount(String name, long bookings) {
     }
 }

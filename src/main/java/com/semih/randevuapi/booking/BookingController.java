@@ -2,6 +2,7 @@ package com.semih.randevuapi.booking;
 
 import com.semih.randevuapi.booking.dto.BookingRequest;
 import com.semih.randevuapi.booking.dto.BookingResponse;
+import com.semih.randevuapi.common.exception.SlotNotAvailableException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -37,7 +38,17 @@ public class BookingController {
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Book a free slot (409 if it was just taken)")
     public BookingResponse book(@Valid @RequestBody BookingRequest request, Authentication auth) {
-        return bookingService.book(request, auth.getName());
+        try {
+            return bookingService.book(request, auth.getName());
+        } catch (SlotNotAvailableException e) {
+            if (request.staffId() != null) {
+                throw e;
+            }
+            // Two customers booking the same time at the same moment can both be given the least
+            // busy staff member; the database lets only one of them in. The other gets one more try
+            // in a new transaction, which now sees that booking and picks someone else if anyone is free.
+            return bookingService.book(request, auth.getName());
+        }
     }
 
     @GetMapping
