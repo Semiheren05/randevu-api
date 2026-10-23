@@ -80,7 +80,7 @@ class BookingFlowIntegrationTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        jdbcTemplate.execute("TRUNCATE bookings, closures, staff_hours, staff_offerings, staff, offerings, "
+        jdbcTemplate.execute("TRUNCATE reviews, bookings, closures, staff_hours, staff_offerings, staff, offerings, "
                 + "business_hours, businesses, users RESTART IDENTITY CASCADE");
         day = LocalDate.now(ISTANBUL).plusDays(2);
 
@@ -533,15 +533,77 @@ class BookingFlowIntegrationTest {
     }
 
     /** A booking for Ayşe starting {@code startsIn} from now (e.g. "20 hours"), made {@code madeAgo} ago. */
-    private void insertBooking(String startsIn, String status, String madeAgo) {
-        Long customerId = jdbcTemplate.queryForObject(
-                "SELECT id FROM users WHERE email = 'ayse@example.com'", Long.class);
-        jdbcTemplate.update("""
+    private long insertBooking(String startsIn, String status, String madeAgo) {
+        return insertBooking("ayse@example.com", startsIn, status, madeAgo);
+    }
+
+    /** Written straight to the database, because the API only takes bookings in the future. */
+    private long insertBooking(String customerEmail, String startsIn, String status, String madeAgo) {
+        Long customerId = jdbcTemplate.queryForObject("SELECT id FROM users WHERE email = ?", Long.class,
+                customerEmail);
+        return jdbcTemplate.queryForObject("""
                 INSERT INTO bookings (business_id, offering_id, customer_id, starts_at, ends_at, price, status,
                                       cancelled_at, created_at)
                 VALUES (?, ?, ?, now() + ?::interval, now() + ?::interval + interval '30 minutes', 250, ?,
                         CASE WHEN ? = 'CANCELLED' THEN now() END, now() - ?::interval)
-                """, businessId, offeringId, customerId, startsIn, startsIn, status, status, madeAgo);
+                RETURNING id
+                """, Long.class, businessId, offeringId, customerId, startsIn, startsIn, status, status, madeAgo);
+    }
+
+    // --- Reviews ---
+
+    @Test
+    void customersReviewVisitsThatHappenedAndEveryoneSeesTheAverage() throws Exception {
+        String deniz = register("deniz@example.com", "Deniz", "CUSTOMER");
+        long ayseVisit = insertBooking("-2 days", "CONFIRMED", "5 days");
+        long denizVisit = insertBooking("deniz@example.com", "-3 days", "CONFIRMED", "5 days");
+
+        review(customerToken, ayseVisit, """
+                {"rating": 5, "comment": "Çok memnun kaldım"}
+                """)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.customerName").value("Ayşe"))
+                .andExpect(jsonPath("$.offeringName").value("Saç kesimi"));
+        review(deniz, denizVisit, """
+                {"rating": 4}
+                """).andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/businesses/kuafor-ali/reviews"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.averageRating").value(4.5))
+                .andExpect(jsonPath("$.reviewCount").value(2))
+                .andExpect(jsonPath("$.reviews.length()").value(2))
+                .andExpect(jsonPath("$.reviews[0].customerEmail").doesNotExist());
+
+        review(customerToken, ayseVisit, """
+                {"rating": 1}
+                """)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Already reviewed"));
+    }
+
+    @Test
+    void reviewsAreOnlyForOwnPastConfirmedBookings() throws Exception {
+        long upcoming = ((Number) JsonPath.read(json(book(customerToken, "10:00")), "$.id")).longValue();
+        long cancelled = insertBooking("-2 days", "CANCELLED", "5 days");
+        long past = insertBooking("-1 day", "CONFIRMED", "5 days");
+        String deniz = register("deniz@example.com", "Deniz", "CUSTOMER");
+
+        review(customerToken, upcoming, "{\"rating\": 5}").andExpect(status().isConflict());
+        review(customerToken, cancelled, "{\"rating\": 5}").andExpect(status().isConflict());
+        review(deniz, past, "{\"rating\": 5}").andExpect(status().isNotFound());
+        review(customerToken, past, "{\"rating\": 6}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.rating").exists());
+        review(ownerToken, past, "{\"rating\": 5}").andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/businesses/kuafor-ali/reviews"))
+                .andExpect(jsonPath("$.reviewCount").value(0))
+                .andExpect(jsonPath("$.averageRating").doesNotExist());
+    }
+
+    private ResultActions review(String token, long bookingId, String body) throws Exception {
+        return perform(post("/api/bookings/{id}/review", bookingId), token, body);
     }
 
     // --- Holidays and days off ---
